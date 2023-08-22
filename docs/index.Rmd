@@ -1,0 +1,967 @@
+---
+title: 
+author:
+date: 
+output: html_document
+---
+```{css echo=FALSE}
+p {
+    font-family: "Open Sans";   
+}
+```
+<style>
+.html-widget {
+    margin: auto;
+}
+</style>
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE, echo=FALSE, results='hide'}
+knitr::opts_chunk$set(warning = FALSE, message = FALSE)
+#install packages 
+library(sf)
+library(dplyr)
+library(leaflet)
+library(stringi)
+library(RColorBrewer)
+library(tidyverse)
+library(ggplot2)
+library(rgdal)
+library(kableExtra)
+library(scales)
+library(ggrepel)
+library(formattable)
+library(tmap)
+library(fontawesome)
+library(magick)
+library(mapview)
+library(extrafont)
+library(ceramic)
+library(mapboxapi)
+font_import("C:/Users/GraceParker/Downloads/Open_Sans")
+# set working directory 
+setwd("C:/Users/GraceParker/Downloads/2023_FederalFundingTracker")
+
+#insert data
+data_raw <- read.csv("C:/Users/GraceParker/Downloads/2023_FederalFundingTracker/BIL_AwardSummaries_2023-07-03.csv")
+# counties_raw <- st_read("C:/Users/GraceParker/Downloads/2023_FederalFundingTracker/US_County_Boundaries/", quiet=TRUE)%>%
+#     select(CTFIPS, geometry, STATE, COUNTY)
+# counties_raw <- st_read("C:/Users/GraceParker/Downloads/2023_FederalFundingTracker/USA_Counties/")%>%
+#   select(FID_1, NAME, STATE_NAME, geometry, County__St)
+# Allstates <- st_read("C:/Users/GraceParker/Downloads/2023_FederalFundingTracker/states/", quiet=TRUE)
+territories <- st_read("C:/Users/GraceParker/Downloads/2023_FederalFundingTracker/Territories/", quiet=TRUE)
+#clean spatial data
+# targetC <- c("Alabama","Arkansas","Florida","Georgia","Kentucky", "Louisiana", "Mississippi", "North Carolina", "South Carolina", "Tennessee", "Virginia")
+# SEcounties <- dplyr::filter(counties_raw, STATE %in% targetC)
+# States <- dplyr::filter(Allstates, NAME %in% targetC)
+
+#clean BIL data
+# targetD = toupper(targetC)
+targetF <- c("01","05","12","13","21","22","28","37","45","47","51","72","60","69","66","78")
+targetG <- c(1,5,12,13,21,22,28,37,45,47,51,72,60,69,66,78)
+data <-select(data_raw, awarding_agency_name, total_obligated_amount, recipient_state_name, recipient_county_name, prime_award_summary_recipient_state_fips_code)
+SETerr <- dplyr::filter(territories,FIPS %in% targetF)
+targetH <- c("01","05","12","13","21","22","28","37","45","47","51")
+SEstates <- dplyr::filter(territories,FIPS %in% targetH)
+SETerrData <- dplyr::filter(data,prime_award_summary_recipient_state_fips_code %in% targetG)
+# #add leading zero to BILdata StaFIPS
+# # SEdata %>% mutate(prime_award_summary_recipient_county_fips_code = sprintf("%05d", prime_award_summary_recipient_county_fips_code))
+# SEdata$prime_award_summary_recipient_state_fips_code <- as.integer(as.character(SEdata$prime_award_summary_recipient_state_fips_code))
+# SEdata$GEOID <- sprintf("%05d", SEdata$prime_award_summary_recipient_state_fips_code)
+
+#group funding by territory/state
+fundByState <- group_by(SETerrData, prime_award_summary_recipient_state_fips_code) %>% dplyr::summarise(
+  StateFunding = sum(total_obligated_amount))%>%
+  as.data.frame()
+
+SETerr$FIPS <- as.numeric(SETerr$FIPS)
+colnames(fundByState)[1] <- "FIPS"
+#join fundbyCounty to SEcounties
+BIL <- left_join(SETerr, fundByState, by = "FIPS")
+
+state_popup <- paste0("<strong>State Name: </strong>", 
+                      str_to_title(BIL$NAME), 
+                      "<br><strong>Total BIL Funding: </strong>", 
+                      formattable::currency(BIL$StateFunding, digits = 0L))
+
+#insert function/award type and population data
+Asst2023_raw <- read.csv("C:/Users/GraceParker/Downloads/2023_FederalFundingTracker/BIL_FY2023_P8_wFunction/FY2023P01-P08_Assistance.csv")
+Con2023_raw <- read.csv("C:/Users/GraceParker/Downloads/2023_FederalFundingTracker/BIL_FY2023_P8_wFunction/FY2023P01-P08_Contracts.csv")
+Unl2023_raw <- read.csv("C:/Users/GraceParker/Downloads/2023_FederalFundingTracker/BIL_FY2023_P8_wFunction/FY2023P01-P08_Unlinked.csv")
+
+Asst2022_raw <- read.csv("C:/Users/GraceParker/Downloads/2023_FederalFundingTracker/BIL_FY2022_wFunction/FY2022_Assistance.csv")
+Con2022_raw <- read.csv("C:/Users/GraceParker/Downloads/2023_FederalFundingTracker/BIL_FY2022_wFunction/FY2022_Contracts.csv")
+Unl2022_raw <- read.csv("C:/Users/GraceParker/Downloads/2023_FederalFundingTracker/BIL_FY2022_wFunction/FY2022_Unlinked.csv")
+
+pop2022_raw <- read.csv("C:/Users/GraceParker/Downloads/2023_FederalFundingTracker/POP2022.csv")
+
+#append data together
+funData <- rbind(Asst2023_raw, Con2023_raw)
+funData <- rbind(funData, Unl2023_raw)
+funData <- rbind(funData, Asst2022_raw)
+funData <- rbind(funData, Con2022_raw)
+funData <- rbind(funData, Unl2022_raw)
+
+#select
+funData <- funData[!is.na(funData$transaction_obligated_amount),]
+funData <-select(funData, budget_subfunction, awarding_agency_name, awarding_subagency_name, transaction_obligated_amount, recipient_state, recipient_county, award_type)
+
+#select population values
+colnames(pop2022_raw)[1] <- "State"
+pop2022 <-select(pop2022_raw, State, X.3)
+
+#get total and perCap for US
+totalUS <- formattable::currency(sum(funData$transaction_obligated_amount), digits=0L)
+pop2022$X.3 <- as.numeric(gsub(",","",pop2022$X.3))
+totPopUS <- pop2022$X.3[4]
+avgPerCapUS <- formattable::currency(totalUS/totPopUS, digits=0L)
+
+#filter
+targetE <- c("AL","AR","FL","GA","KY", "LA", "MS", "NC", "SC", "TN", "VA", "GU", "PR", "MP", "AS", "VI")
+targetO <- c("GU", "PR", "MP", "AS", "VI")
+funData <- dplyr::filter(funData, recipient_state %in% targetE)
+DataTerr <- dplyr::filter(funData, recipient_state %in% targetO)
+
+#filter pop by state
+targetF <- c(".Alabama",".Arkansas",".Florida",".Georgia",".Kentucky", ".Louisiana", ".Mississippi", ".North Carolina", ".South Carolina", ".Tennessee", ".Virginia")
+pop2022 <- dplyr::filter(pop2022, State %in% targetF)
+
+#group by state and sum funding
+stateData <- funData %>%                                     
+  group_by(recipient_state) %>%
+  dplyr::summarise(Funding = sum(transaction_obligated_amount)) %>% 
+  as.data.frame()
+
+#calculate percent and per cap funding
+colnames(stateData)[1] <- "State"
+pop2022$State <- c('AL', 'AR', 'FL', 'GA', 'KY', 'LA', 'MS', 'NC', 'SC', 'TN', 'VA')
+stateData <- left_join(stateData, pop2022, by = "State") 
+stateData$Funding <- as.numeric(stateData$Funding)
+stateData$X.3 <- as.numeric(gsub(",","",stateData$X.3))
+totPop <- sum(stateData$X.3)
+stateData$perCapita <- stateData$Funding/stateData$X.3
+stateData$Percent <- stateData$Funding/sum(stateData$Funding)*100
+stateData$Percent <- format(round(stateData$Percent, 2), nsmall=2)
+stateData$Percent <- as.numeric(stateData$Percent)
+stateData$Funding <- signif(stateData$Funding, 5)
+stateData$Funding <- formattable::currency(stateData$Funding, digits = 0L)
+stateData$perCapita <- formattable::currency(stateData$perCapita, digits = 0L)
+pop2022$X.3 <- as.numeric(gsub(",","",pop2022$X.3))
+totPop <- sum(pop2022$X.3)
+```
+## Bipartisan Infrastructure Law Funding in the Southeast
+```{r, echo=FALSE, message=FALSE, warning=FALSE, echo=FALSE, results='hide', fig.show='hide'}
+BIL$StateFunding <- formattable::currency(BIL$StateFunding)
+#tmap
+# tmap_mode(mode ="plot")
+# bbox_SE <- st_bbox(SEstates)
+# 
+# # tm_basemap("CartoDB.PositronNoLabels")
+# 
+# mbtiles <- get_static_tiles(
+#   location = c(-100, 23, -67, 40),
+#   zoom = 4,
+#   style_url= "mapbox://styles/gparker-seea/clkr4hgj800zo01qk7npq3p0x",
+#   username="gparker-seea",
+#   access_token= "pk.eyJ1IjoiZ3Bhcmtlci1zZWVhIiwiYSI6ImNsa3I0ZHFtajJnc2QzcWtlajlmbWV3d2IifQ.jk6o3SXtTTAneVg11e_pww"
+# )
+# 
+# # tm_shape(territories, is.master=F)+
+# #   tm_fill(col="grey70")+
+# tm_shape(mbtiles)+
+#   tm_rgb() + 
+# tm_shape(BIL) +
+#   tm_polygons("StateFunding",
+#           palette= c("#B8E9F0","#75C7D3", "#00869F", "#00447C"),
+#           breaks=c(1000000000, 1500000000, 2000000000, 3000000000, Inf),
+#           textNA= "$0",
+#           labels = c(
+#       "$1-1.5 billion", "$1.5-2 billion", "$2-3 billion", "$3 billion+"),
+#       popup.vars= c("Funding: "="StateFunding"),
+#       popup.format= list(prefix="$", big.num.abbr=NA),
+#       id= "NAME",
+#       alpha=.85,
+#       title= "BIL State Funding",
+#       border.col="white")+
+#   tm_borders(col="white", lwd=.25)+
+# tm_shape(SEstates)+
+#   tm_borders(col="white", lwd=1)+
+# tmap_options(check.and.fix = TRUE)+
+# tm_layout(main.title = "Bipartisan Infrastructure Law Funding in the Southeast",
+#       main.title.fontfamily = "Calibri",
+#       main.title.fontface = "bold", 
+#       main.title.size= 1,
+#       # asp= 1.5,
+#       legend.position= c("right","bottom"),
+#       legend.text.fontfamily = "Calibri", 
+#       legend.title.fontfamily = "Calibri", 
+#       legend.title.size= 1)
+# 
+# tmap_save(filename="C:/Users/GraceParker/Downloads/2023_FederalFundingTracker/funding.png", height=4, width =6, dpi=1200)
+```
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE, echo=FALSE}
+#tmap
+tmap_mode(mode ="view")
+tm_basemap("CartoDB.PositronNoLabels")+
+tm_shape(BIL) +
+  tm_polygons("StateFunding",
+          palette= c("#75C7D3", "#00869F", "#006A7E", "#00315E"),
+          breaks=c(0, 1500000000, 2000000000, 3000000000, Inf),
+          textNA= "$0",
+          labels = c("$0-1.5 billion", "$1.5-2 billion", "$2-3 billion", "$3 billion+"),
+      popup.vars= c("Funding: "="StateFunding"),
+      popup.format= list(prefix="$", big.num.abbr=NA),
+      id= "NAME",
+      title= "BIL State Funding",
+      border.col="white")+
+  tm_borders(col="white", lwd=.25)+
+tmap_options(check.and.fix = TRUE, output.size=50)+
+tm_layout(main.title = "Bipartisan Infrastructure Law Funding in the Southeast",
+      main.title.fontfamily = "Open Sans",
+      main.title.fontface = "bold", 
+      main.title.size= 1,
+      asp= 1.5,
+      legend.text.fontfamily = "Open Sans", 
+      legend.title.fontfamily = "Open Sans", 
+      legend.title.size= 1)+
+  tm_view(set.view=c(-83,35,5))
+```
+<br>
+The Infrastructure Investment and Jobs Act, also known as the Bipartisan Infrastructure Law (BIL), was passed in November 2021 and allocates $1.2 trillion over ten years in funding for infrastructure projects including roads, public transit, broadband, and electric grid upgrades. As federal agencies continue to allocate BIL funding, this map shows how much funding recipients in the Southeast have received as of July 13, 2023. Funding is tied to the recipient's location, which is often distinct from the place of performance, meaning that the funding does not necessarily fund work in that state However, the recipient location is the best available indicator of where this funding is invested.
+
+## Funding Analysis {.tabset}
+### Southeast
+```{r echo=FALSE}
+targetM <- c("AL","AR","FL","GA","KY", "LA", "MS", "NC", "SC", "TN", "VA")
+SEdata<- filter(stateData, State %in% targetM)
+SEdata$State <- c("Alabama","Arkansas","Florida","Georgia","Kentucky", "Louisiana", "Mississippi", "North Carolina", "South Carolina", "Tennessee", "Virginia")
+SEdata <- SEdata[order(SEdata$Funding,decreasing=TRUE),]
+SEdata$zone.start <- with(SEdata, c(0, cumsum(Percent)[-length(Percent)]))  
+SEdata$zone.end <- with(SEdata, cumsum(Percent))  
+SEdata$label.point <- with(SEdata, ((zone.start + zone.end) / 2)) 
+
+pie <- ggplot(SEdata, aes(x="", y=Percent, fill=reorder(State, Percent, decreasing=F)))+
+  geom_bar(width = 1, stat = "identity")+
+  coord_polar("y", start=0)+
+  scale_fill_manual(values=c("#BFBFBF", "#6171AF", "#00869F", "#75C7D3", "#AAC5E2", "#8FED94", "#FFF745","#FCB616", "#D4442D", "#C70039", "#900C3F"), name= "States") +
+  geom_text_repel(data = SEdata,
+                   aes(y = label.point, label = ifelse(Percent>10,paste0(Percent, "%"),""), family="Open Sans"),
+                   size = 4.5, nudge_x = 1, show.legend = FALSE) +
+  ggtitle("Southeast BIL Funding by State")+
+  theme_void(base_family="Open Sans")+
+  guides(fill=guide_legend(reverse=T))
+pie
+ggsave("C:/Users/GraceParker/Downloads/2023_FederalFundingTracker/States.png", width = 6,   height = 4, dpi=1200)
+
+total <- formattable::currency(sum(stateData$Funding), digits=0L)
+SEpercent <- as.numeric(total)/as.numeric(totalUS)*100
+SEpercent <- format(round(SEpercent, 2), nsmall=2)
+avgPerCap <- formattable::currency(total/totPop, digits=0L)
+SEpercPop <- as.numeric(totPop)/as.numeric(totPopUS)*100
+SEpercPop <- format(round(SEpercPop, 2), nsmall=2)
+
+
+# SEdata <- SEdata[order(SEdata$Funding,decreasing=TRUE),]
+statesTable<- SEdata%>% select(State, Funding, perCapita) %>% kbl(row.names=FALSE) %>%
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed", "responsive"), full_width = F, html_font="Open Sans", font_size = 14, position="center", row_label_position = r)%>%
+  add_header_above(c("Southeast Funding by State"=3))%>%
+  row_spec(1:11, color  = "black")%>%
+  column_spec(1:3, "5cm")
+statesTable
+
+save_kable(statesTable,"C:/Users/GraceParker/Downloads/2023_FederalFundingTracker/Statetable.png")
+```
+
+
+As of July 13, 2023, the federal government had committed $23.74 billion in Infrastructure Investment and Jobs Act funding to the Southeast, or about `r avgPerCap` per person. This is about `r SEpercent`% of total BIL funding committed nationally, while about `r SEpercPop`% of the U.S. population lived in the Southeast in 2022. The Southeast per capita funding is less than the national average of `r avgPerCapUS`. Florida and Georgia have received the most funding at about $4.2 billion and $3.5 billion respectively. Florida, Georgia, North Carolina, and Virginia, the most populous states in the Southeast, have received the most funding but generally lower amounts of funding per person. South Carolina has received the second lowest amount of total funding and funding per person in the Southeast, indicating that more support is needed to successfully apply for funding.
+<br>
+
+``` {r echo=FALSE, fig.align='center'}
+funcSE <- funData %>% dplyr::filter(recipient_state %in% targetM)%>% 
+  group_by(budget_subfunction) %>% dplyr::summarise(
+  Funding = sum(transaction_obligated_amount)
+  )%>% as.data.frame()
+
+funcSE$Percent <- 100*(funcSE$Funding/sum(funcSE$Funding))
+funcSE$Percent <- format(round(funcSE$Percent, 2), nsmall=2)
+funcSE$Percent <- as.numeric(funcSE$Percent)
+
+funcSE$zone.start <- with(funcSE, c(0, cumsum(Percent)[-length(Percent)]))  
+funcSE$zone.end <- with(funcSE, cumsum(Percent))  
+funcSE$label.point <- with(funcSE, (100-(zone.start + zone.end) / 2)) 
+
+colnames(funcSE)[1] <- "Category"
+
+pie <- ggplot(funcSE, aes(x="", y=Percent, fill=Category))+
+  geom_bar(width = 1, stat = "identity")+
+  coord_polar("y", start=0)+
+  scale_fill_manual(values=c("#FFA07A","#F08080", "#900C3F", "#C70039", "#D4442D", "#FCB616","#FFF7B3","#8FED94", "#52BE80", "#AAC5E2", "#75C7D3", "#00869F", "#6171AF","#DCB6D0","#C799C8", "#D2D2D2", "#7B7B7B","#585757")) +
+  geom_text_repel(data = funcSE,
+                   aes(y = label.point, label = ifelse(Percent>5 | Category == 'Energy conservation' ,paste0(Percent, "%"),""), family="Open Sans"),
+                   size = 4.5, nudge_x = 1, show.legend = FALSE) +
+  ggtitle("Southeast Funding by Category")+
+  theme_void(base_family= "Open Sans")+
+  theme(legend.key.height = unit(.5,'cm'),
+        legend.key.width = unit(.5, 'cm'))
+pie
+
+ggsave("C:/Users/GraceParker/Downloads/2023_FederalFundingTracker/Categories.png", width = 6,   height = 4.25, dpi=1100)
+
+# fundByType <-group_by(funData,award_type) %>% dplyr::summarise(
+#   Funding = sum(transaction_obligated_amount)
+#   )%>% as.data.frame()
+# 
+# fundByType$Percent <- 100*(fundByType$Funding/sum(fundByType$Funding))
+# fundByType$Percent <- format(round(fundByType$Percent, 2), nsmall=2)
+# fundByType$Percent <- as.numeric(fundByType$Percent)
+# 
+# fundByType$zone.start <- with(fundByType, c(0, cumsum(Percent)[-length(Percent)]))  
+# fundByType$zone.end <- with(fundByType, cumsum(Percent))  
+# fundByType$label.point <- with(fundByType, (100-(zone.start + zone.end) / 2)) 
+# 
+# fundByType$award_type[7] <- "Direct Payment Specified Use"
+# fundByType$award_type[11] <- "Other Financial Assistance"
+# colnames(fundByType)[1] <- "Type"
+# fundByType$Type <- str_to_title(fundByType$Type)
+# fundByType$Type[2] <- "BPA Call"
+# 
+# pie2 <- ggplot(fundByType, aes(x="", y=Percent, fill=Type))+
+#   geom_bar(width = 1, stat = "identity")+
+#   coord_polar("y", start=0)+
+#   scale_fill_manual(values=c("#900C3F", "#C70039", "#D4442D", "#FCB616", "#52BE80", "#AAC5E2", "#75C7D3", "#00869F", "#6171AF","#DCB6D0","#C799C8", "#D2D2D2", "#7B7B7B","#585757")) +
+#   geom_text_repel(data = fundByType,
+#                    aes(y = label.point, label = ifelse(Percent>5,paste0(Percent, "%"),""),family="Open Sans"),
+#                    size = 4.5, nudge_x = 1, show.legend = FALSE, max.overlaps =20) +
+#   ggtitle("Southeast Funding by Award Type")+
+#   theme_void(base_family= "Open Sans")
+# pie2
+# 
+# ggsave("C:/Users/GraceParker/Downloads/2023_FederalFundingTracker/award_type.png", width = 6,   height = 4, dpi=1100)
+
+dirSpecUse <- dplyr::filter(funData, grepl("DIRECT PAYMENT FOR SPECIFIED USE", award_type))
+FCC <- dplyr::filter(dirSpecUse, awarding_agency_name == "FEDERAL COMMUNICATIONS COMMISSION (FCC)")
+totaldirSpec <- sum(dirSpecUse$transaction_obligated_amount)
+totalFCC <-  sum(FCC$transaction_obligated_amount)
+percentFCC <- totalFCC/totaldirSpec *100
+```
+``` {r echo=FALSE}
+funcSE$Funding <- signif(funcSE$Funding, 5)
+funcSE$Funding <- formattable::currency(funcSE$Funding, digits = 0L)
+funcSE%>% select(Category, Funding)%>% kbl() %>%
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed", "responsive"), full_width=F, font_size=14, html_font="Open Sans")%>%
+  add_header_above(c("Southeast Funding by Category"=2))%>%
+  row_spec(1:18, color  = "black")%>%
+  column_spec(1, "10cm")%>%
+  column_spec(2,"3cm")
+```
+
+### Southeast Energy Funding 
+
+About $360.2 million has been committed to energy conservation in the Southeast, with an additional $51.2 million in energy production and $4.6 million in energy regulation. The majority of committed energy funding in the BIL has gone to state weatherization programs with $227.7 million and then to state energy offices for more general use with $62.0 million. The amount of BIL weatherization program funding varies drastically by state, with DOE committing about $46.8 million to the Florida Department of Commerce and about one-tenth of that to the Arkansas Division of Environmental Quality. The funding committed to state energy offices for general programs also varies drastically, and the data indicates that DOE has not yet committed any state energy program funding to Mississippi. Notably, DOE has committed only $200,000 to Georgia, Louisiana, and North Carolina, which is much less than the 5 million or more committed to every other state in the Southeast.
+
+``` {r echo=FALSE}
+###Weatherization Assistance Program Funding
+WAPdata <- read.csv("C:/Users/GraceParker/Downloads/2023_FederalFundingTracker/Southeast_DOE_funding_BIL/Southeast_DOE_BIL_PrimeAwards.csv")%>%select(obligated_amount_from_IIJA_supplemental, program_activities_funding_this_award, recipient_name, cfda_numbers_and_titles, recipient_state_name)%>%filter(cfda_numbers_and_titles == "81.042: WEATHERIZATION ASSISTANCE FOR LOW-INCOME PERSONS")
+
+colnames(WAPdata)[1] <- "Funding"
+colnames(WAPdata)[3] <- "Recipient"
+WAPdata$Recipient <- paste(str_to_title(WAPdata$Recipient))
+WAPdata$Funding <- signif(WAPdata$Funding, 5)
+WAPdata$Funding <- currency(WAPdata$Funding, digits = 0L)
+WAPdata <- WAPdata[order(WAPdata$Funding,decreasing=TRUE),]
+WAPdata$Recipient[4] <- "Alabama Department of Economic and Community Affairs"
+WAPdata$Recipient[5] <- "South Carolina Office of the State Treasurer"
+WAPdata$Recipient[7] <- "Mississippi Department of Human Services"
+WAPdata$Recipient[11] <- "Arkansas Division of Environmental Quality"
+WAPdata$Recipient[10] <- "Virginia Department of Housing and Community Development"
+
+WAPtable<- WAPdata%>% select(Recipient, Funding)%>% kbl(row.names=FALSE) %>%
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed", "responsive"), full_width = F, html_font="Open Sans", font_size = 14)%>%  
+  add_header_above(c("Weatherization Assistance Program Funding"=2))%>%
+  row_spec(1:11, color  = "black")%>%
+  column_spec(1, "12cm")%>%
+  column_spec(2, "3cm")
+WAPtable
+save_kable(WAPtable,"C:/Users/GraceParker/Downloads/2023_FederalFundingTracker/WAPtable.png")
+WAPtotal <- sum(WAPdata$Funding)
+
+###State Energy Office Funding
+SEOdata <- read.csv("C:/Users/GraceParker/Downloads/2023_FederalFundingTracker/Southeast_DOE_funding_BIL/Southeast_DOE_BIL_PrimeAwards.csv")%>%select(obligated_amount_from_IIJA_supplemental, program_activities_funding_this_award, recipient_name, cfda_numbers_and_titles, recipient_state_name)%>%filter(cfda_numbers_and_titles == "81.041: STATE ENERGY PROGRAM")
+
+colnames(SEOdata)[1] <- "Funding"
+colnames(SEOdata)[3] <- "Recipient"
+SEOdata$Recipient <- paste(str_to_title(SEOdata$Recipient))
+SEOdata$Funding <- signif(SEOdata$Funding, 5)
+SEOdata$Funding <- currency(SEOdata$Funding, digits = 0L)
+SEOdata <- SEOdata[order(SEOdata$Funding,decreasing=TRUE),]
+SEOdata$Recipient[4] <- "Alabama Department of Economic and Community Affairs"
+SEOdata$Recipient[5] <- "Kentucky Energy and Environment Cabinet"
+SEOdata$Recipient[7] <- "Arkansas Division of Environmental Quality"
+SEOdata$Recipient[9] <- "Louisiana Department of Natural Resources"
+SEOtable<-SEOdata%>% select(Recipient, Funding)%>% kbl(row.names=FALSE) %>%
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed", "responsive"), html_font="Open Sans", font_size = 14, full_width = F)%>%
+  add_header_above(c("State Energy Program Funding"=2))%>%
+  row_spec(1:10, color  = "black")%>%
+  column_spec(1, "12cm")%>%
+  column_spec(2, "3cm")
+SEOtable
+save_kable(SEOtable,"C:/Users/GraceParker/Downloads/2023_FederalFundingTracker/SEOtable.png")
+SEOtotal <- sum(SEOdata$Funding)
+
+```
+
+
+``` {r echo=FALSE, message=FALSE, warning=FALSE}
+# popup<- c("EPA committed $3.9 million to the City of Atlanta for brownfield remediation at five sites. The sites will be redeveloped or repurposed into affordable housing units, an environmental education center, parks, and mixed-use sites.", "DOE awarded $9.1 million to the National Association of State Energy Officials for their work building a national electric vehicle infrastructure network.", "DOI committed $74.3 million to the Kentucky Energy and Environment Cabinet for mine reclamation.", "DOT committed $6.9 million to the Parish of Jefferson, LA, to purchase three diesel-electric buses and construct new administrative and maintenance buildings.", "The Natural Resources Conservation Service committed $62.1 million to the Arkansas Black Mayors' Association for watershed protection and flood prevention in several cities across the state.", "DOC committed about $500,000 to the Seminole Tribe of Florida to establish a digital training program and provide broadband equipment to support schools, libraries, and workforce development.", "The EPA committed $19.4 million to the Mississippi State Department of Health for public water systems, including fixing leaky or old pipes, improving source of water supply, replacing or constructing finished water storage tanks, and more.", "DOE committed $141.7 million to Piedmont Lithium to build a lithium hydroxide facility that will strengthen the domestic EV battery supply chain. The facility is expected to produce 30,000 metric tons of lithium hydroxide per year, doubling the current U.S. production.", "DOE committed $117 million to Anovion to build a facility that can produce 35,000 tons annually of synthetic graphite anode material, which is used for EV and critical energy storage lithium-ion batteries. This grant will also be used to expand capacity at Anovion's plant in New York.", "DOT committed $3.9 million to the City of Clemson for zero emission battery electric buses to replace diesel buses that have exceeded their useful life.", "DOE committed $220 million for the expansion of Syrah's natural graphite active anode material (AAM) facility. This facility will be the first large-scale natural graphite AAM facility in the United States.", "DOE committed $178 million to Solvary to build a  polyvinylidene fluoride (PDVF) facility. The facility is expected to supply over 5 million EV batteries per year at full capacity and create more than 100 highly skilled manufacturing jobs.", "The Federal Transit Authority committed $16.1 million to the Central Florida Regional Transportation Authority to buy battery electric buses and charging equipment.", "The Army Corps of Engineers committed nearly $1.1 billion to reconnect the Northern Everglades and the southern and central habitats, which have been isolated by the impacts of human development. This is the single largest investment in Everglade's history.", "EPA committed $1 million to the Westminster Village of the Mid-South to clean up a retirement community that provides affordable housing. The site is contaminated with inorganic contaminants.", "DOE committed $316 million to Ascend Elements to build a manufacturing and EV batteries recycling facility. The facility will produce enough precursor and battery-ready cathode active materials for 250,000 EVs per year.", "DOE committed $100 million to Applied Materials to build a prelithiation and lithium anode facility to support the EV battery supply chain.", "DOC committed $500,000 to the Eastern Band of Cherokee Indians for the initial phase of a broadband initiative, including rights-of-way, appraisals, project inspection fees, and project management.", "DOT committed $800,000 to the City of Birmingham for data-driven recommendations to mitigate the negative impacts of rail and highway infrastructure on historically Black communities and historic neighborhoods in general.", "DOI committed $25 million to the Louisiana DNR to plug and restore orphaned wells, implement methane monitoring protocols, and improve water quality monitoring.")
+# 
+# # named list of awesome icons
+# icoLst <- awesomeIconList(
+#   EV = makeAwesomeIcon(text = fa("charging-station"), markerColor = "blue"), #00869F
+#   broadband = makeAwesomeIcon(text = fa("wifi"), markerColor = "orange"), #FCB616
+#   brownfield = makeAwesomeIcon(text=fa("triangle-exclamation"), markerColor = "red"), #D4442D
+#   nature = makeAwesomeIcon(text=fa("seedling"), markerColor = "green"), #52BE80
+#   transport = makeAwesomeIcon(text=fa("road"), markerColor = "black"), #FFF7B3
+#   battery = makeAwesomeIcon(text=fa("battery-full"), markerColor = "lightblue"), #AAC5E2
+#   earth = makeAwesomeIcon(text=fa("earth-americas"), markerColor = "lightgreen"), #8FED94
+#   water = makeAwesomeIcon(text=fa("droplet"), markerColor = "purple") #75C7D3
+# )
+# 
+# location <- c("Atlanta", "Arlington", "Franklin, KY", "Gretna, LA", "Pulaski, AR",  "Hollywood, FL", "Hinds, MS",  "McMinn, TN", "Colbert", "Clemson", "Vidalia, GA", "Augusta, GA", "Orlando, FL", "Everglades, FL", "Blytheville, AR", "Hopkinsville", "Winston", "Cherokee", "Birmingham", "Baton Rouge")
+# lat <- c(33.7488,38.8816, 38.2481, 29.916653, 34.7539, 26.0112, 32.2648, 35.4037, 34.7118, 34.6834, 31.5654, 33.4735, 28.5384, 25.7459, 35.9285, 36.8656, 36.0999, 35.4771, 33.5186, 30.5694)
+# long <- c(-84.3877,-77.0910, -84.8985, -90.057854, -92.2237, -80.1495, -90.3748,-84.6479, -87.8942, -82.8374, -91.4259, -82.0105, -81.3789, -80.5550, -89.9080, -87.4886, -80.2442, -83.3206, -86.8104, -91.0969)
+# icons <- c("brownfield", "EV", "earth", "EV", "water", "broadband", "water", "battery", "battery", "EV", "battery", "battery", "EV", "nature", "brownfield", "battery", "battery", "broadband", "transport", "earth")
+# # color <- c("red", "#00869F", "#8FED94", "#00869F", "#75C7D3", "#FCB616", "#75C7D3", "#AAC5E2", "#AAC5E2", "#00869F", "#AAC5E2", "#AAC5E2", "#00869F","#52BE80", "#D4442D", "#AAC5E2", "#AAC5E2", "#FCB616", "#FFF7B3","#8FED94")
+# df <- data.frame(lat, long, icons, location, popup)
+# df %>%
+#   leaflet() %>% 
+#   addProviderTiles(providers$CartoDB.PositronNoLabels)%>%
+#   setView(lng = -84.25, lat = 33.0, zoom = 5)%>%
+#   addAwesomeMarkers(icon = ~ icoLst[icons], popup=popup)
+#   # mapshot(file = "C:/Users/GraceParker/Downloads/2023_FederalFundingTracker/projects.png")
+
+```
+```{r, echo=FALSE, results='hide'}
+#unsure if this is worth the time
+# #tmap
+# tmap_mode(mode ="plot")
+# 
+# projects<- st_as_sf(df, coords=c("long","lat"), crs=4326)
+# bbox_SE <- st_bbox(projects)
+# tm_shape(Allstates, is.master=F)+
+#   tm_fill(col="grey70")+
+# tm_shape(projects, bbox=bbox_SE, is.master=T) +
+#   tm_dots()
+#   # tm_polygons("CountyFunding",
+#   #         palette= c("#DDF5F9","#B8E9F0","#75C7D3", "#00869F", "#006A7E","#00447C"),
+#   #         breaks=c(0, 100000, 500000, 1000000,2000000,3000000, Inf),
+#   #         textNA= "$0",
+#   #         labels = c(
+#   #     "$1-100,000", "$100,000-500,000", "$500,000-1,000,000", "$1,000,000-2,000,000", "$2,000,000-3,000,000",
+#   #     "$3,000,000+", "$0"),
+#   #     popup.vars= c("Funding: "="CountyFunding"),
+#   #     popup.format= list(prefix="$", big.num.abbr=NA),
+#   #     id= "COUNTY",
+#   #     title= "BIL County Funding",
+#   #     border.col="white")+
+#   # tm_borders(col="white", lwd=.25)+
+# tm_shape(States)+
+#   tm_borders(col="white", lwd=2)+
+# tmap_options(check.and.fix = TRUE, output.size=50)+
+# tm_layout(main.title = "Southeast Project Spotlight",
+#       main.title.fontfamily = "Open Sans",
+#       main.title.fontface = "bold", 
+#       main.title.size= 1,
+#       asp= 1.5,
+#       legend.text.fontfamily = "Open Sans", 
+#       legend.title.fontfamily = "Open Sans", 
+#       legend.title.size= 1)
+# 
+# 
+# tmap_save(filename="C:/Users/GraceParker/Downloads/2023_FederalFundingTracker/projects2.png", height=4, width =6, dpi=1200)
+```
+
+### Alabama
+```{r, echo=FALSE, fig.align='center'}
+#function and award type data, filter to Alabama
+funcAL <-dplyr::filter(funData, recipient_state=="AL")%>%
+  group_by(budget_subfunction) %>% dplyr::summarise(
+  Funding = sum(transaction_obligated_amount)
+  )%>% as.data.frame()
+
+funcAL$Percent <- 100*(funcAL$Funding/sum(funcAL$Funding))
+funcAL$Percent <- format(round(funcAL$Percent, 2), nsmall=2)
+funcAL$Percent <- as.numeric(funcAL$Percent)
+
+funcAL$zone.start <- with(funcAL, c(0, cumsum(Percent)[-length(Percent)]))  
+funcAL$zone.end <- with(funcAL, cumsum(Percent))  
+funcAL$label.point <- with(funcAL, (100-(zone.start + zone.end) / 2)) 
+
+colnames(funcAL)[1] <- "Category"
+
+pie <- ggplot(funcAL, aes(x="", y=Percent, fill=Category))+
+  geom_bar(width = 1, stat = "identity")+
+  coord_polar("y", start=0)+
+  scale_fill_manual(values=c("#FFA07A","#900C3F","#C70039", "#D4442D", "#8FED94", "#00869F", "#6171AF","#DCB6D0","#C799C8","#7B7B7B","#585757")) +
+  geom_text_repel(data = funcAL,
+                   aes(y = label.point, label = ifelse(Percent>10,paste0(Percent, "%"),""), family="Open Sans"),
+                   size = 4.5, nudge_x = 1, show.legend = FALSE)+
+  ggtitle("Alabama Funding by Category")+
+  theme_void(base_family = "Open Sans")
+pie
+```
+
+
+As of July 13, 2023, the federal government had committed `r SEdata$Funding[6]` in Infrastructure Investment and Jobs Act funding to Alabama, or about `r SEdata$perCapita[6]` per person. Alabama ranks 6th for funding committed within the Southeast and 3rd on a per capita basis.
+<br>
+```{r echo=FALSE}
+funcAL$Funding <- signif(funcAL$Funding, 5)
+funcAL$Funding <- currency(funcAL$Funding, digits = 0L)
+funcAL%>% select(Category, Funding)%>% kbl() %>%
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed", "responsive"), full_width = F, html_font="Open Sans", font_size = 14)%>%  
+  add_header_above(c("Alabama Funding by Category"=2))%>%
+  row_spec(1:11, color  = "black")%>%
+  column_spec(1, "10cm")%>%
+  column_spec(2, "3cm")
+```
+
+### Arkansas 
+```{r, echo=FALSE, fig.align='center'}
+funcAR <-dplyr::filter(funData, recipient_state=="AR")%>%
+  group_by(budget_subfunction) %>% dplyr::summarise(
+  Funding = sum(transaction_obligated_amount)
+  )%>% as.data.frame()
+
+funcAR$Percent <- 100*(funcAR$Funding/sum(funcAR$Funding))
+funcAR$Percent <- format(round(funcAR$Percent, 2), nsmall=2)
+funcAR$Percent <- as.numeric(funcAR$Percent)
+
+funcAR$zone.start <- with(funcAR, c(0, cumsum(Percent)[-length(Percent)]))  
+funcAR$zone.end <- with(funcAR, cumsum(Percent))  
+funcAR$label.point <- with(funcAR, (100-(zone.start + zone.end) / 2)) 
+
+colnames(funcAR)[1] <- "Category"
+
+pie <- ggplot(funcAR, aes(x="", y=Percent, fill=Category))+
+  geom_bar(width = 1, stat = "identity")+
+  coord_polar("y", start=0)+
+  scale_fill_manual(values=c("#FFA07A", "#900C3F", "#C70039", "#D4442D","#75C7D3", "#00869F","#6171AF","#DCB6D0", "#7B7B7B","#585757")) +
+  geom_text_repel(data = funcAR,
+                   aes(y = label.point, label = ifelse(Percent>10,paste0(Percent, "%"),""),family="Open Sans"),
+                   size = 4.5, nudge_x = 1, show.legend = FALSE) +
+  ggtitle("Arkansas Funding by Category")+
+  theme_void(base_family="Open Sans")
+pie
+```
+
+
+As of July 13, 2023, the federal government had committed `r SEdata$Funding[9]` in Infrastructure Investment and Jobs Act funding to Arkansas, or about `r SEdata$perCapita[9]` per person. Arkansas ranks 9th for funding committed within the Southeast and 1st on a per capita basis.
+<br>
+``` {r echo=FALSE}
+funcAR$Funding <- signif(funcAR$Funding, 5)
+funcAR$Funding <- currency(funcAR$Funding, digits = 0L)
+funcAR%>% select(Category, Funding)%>% kbl() %>%
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed", "responsive"), full_width = F, html_font="Open Sans", font_size = 14)%>%  
+  add_header_above(c("Arkansas Funding by Category"=2))%>%
+  row_spec(1:10, color  = "black")%>%
+  column_spec(1, "10cm")%>%
+  column_spec(2, "3cm")
+```
+### Florida 
+```{r, echo=FALSE, fig.align='center'}
+
+#function and award type data, filter to Florida
+funcFL <-dplyr::filter(funData, recipient_state=="FL")%>%
+  group_by(budget_subfunction) %>% dplyr::summarise(
+  Funding = sum(transaction_obligated_amount)
+  )%>% as.data.frame()
+
+funcFL$Percent <- 100*(funcFL$Funding/sum(funcFL$Funding))
+funcFL$Percent <- format(round(funcFL$Percent, 2), nsmall=2)
+funcFL$Percent <- as.numeric(funcFL$Percent)
+
+funcFL$zone.start <- with(funcFL, c(0, cumsum(Percent)[-length(Percent)]))  
+funcFL$zone.end <- with(funcFL, cumsum(Percent))  
+funcFL$label.point <- with(funcFL, (100-(zone.start + zone.end) / 2)) 
+
+colnames(funcFL)[1] <- "Category"
+
+pie <- ggplot(funcFL, aes(x="", y=Percent, fill=Category))+
+  geom_bar(width = 1, stat = "identity")+
+  coord_polar("y", start=0)+
+  scale_fill_manual(values=c("#FFA07A", "#900C3F","#C70039", "#D4442D","#52BE80", "#75C7D3","#00869F", "#6171AF","#DCB6D0","#C799C8", "#D2D2D2", "#7B7B7B","#585757")) +
+  geom_text_repel(data = funcFL,
+                   aes(y = label.point, label = ifelse(Percent>10,paste0(Percent, "%"),""), family="Open Sans"),
+                   size = 4.5, nudge_x = 1, show.legend = FALSE) +
+  ggtitle("Florida Funding by Category")+
+  theme_void(base_family="Open Sans")
+pie
+```
+
+As of July 13, 2023, the federal government had committed `r SEdata$Funding[1]` in Infrastructure Investment and Jobs Act funding to Florida, or about `r SEdata$perCapita[1]` per person. Florida ranks 1st for funding committed within the Southeast and 11th on a per capita basis.
+<br>
+```{r echo=FALSE}
+funcFL$Funding <- signif(funcFL$Funding, 5)
+funcFL$Funding <- currency(funcFL$Funding, digits = 0L)
+funcFL%>% select(Category, Funding)%>% kbl() %>%
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed", "responsive"), full_width = F, html_font="Open Sans", font_size = 14)%>%  
+  add_header_above(c("Florida Funding by Category"=2))%>%
+  row_spec(1:13, color  = "black")%>%
+  column_spec(1, "10cm")%>%
+  column_spec(2, "3cm")
+```
+### Georgia
+```{r, echo=FALSE, fig.align='center'}
+#function and award type data, filter to Georgia
+funcGA <-dplyr::filter(funData, recipient_state=="GA")%>%
+  group_by(budget_subfunction) %>% dplyr::summarise(
+  Funding = sum(transaction_obligated_amount)
+  )%>% as.data.frame()
+
+funcGA$Percent <- 100*(funcGA$Funding/sum(funcGA$Funding))
+funcGA$Percent <- format(round(funcGA$Percent, 2), nsmall=2)
+funcGA$Percent <- as.numeric(funcGA$Percent)
+
+funcGA$zone.start <- with(funcGA, c(0, cumsum(Percent)[-length(Percent)]))  
+funcGA$zone.end <- with(funcGA, cumsum(Percent))  
+funcGA$label.point <- with(funcGA, (100-(zone.start + zone.end) / 2)) 
+
+colnames(funcGA)[1] <- "Category"
+
+pie <- ggplot(funcGA, aes(x="", y=Percent, fill=Category))+
+  geom_bar(width = 1, stat = "identity")+
+  coord_polar("y", start=0)+
+  scale_fill_manual(values=c("#FFA07A","#F08080", "#900C3F", "#C70039", "#D4442D","#FFF7B3","#52BE80","#75C7D3", "#00869F", "#6171AF","#DCB6D0","#C799C8", "#D2D2D2", "#7B7B7B","#585757")) +
+  geom_text_repel(data = funcGA,
+                   aes(y = label.point, label = ifelse(Percent>10,paste0(Percent, "%"),""),family="Open Sans"),
+                   size = 4.5, nudge_x = 1, show.legend = FALSE) +
+  ggtitle("Georgia Funding by Category")+
+  theme_void(base_family="Open Sans")
+pie
+```
+
+
+As of July 13, 2023, the federal government had committed `r SEdata$Funding[2]` in Infrastructure Investment and Jobs Act funding to Georgia, or about `r SEdata$perCapita[2]` per person. Georgia ranks 2nd for funding committed within the Southeast and 6th on a per capita basis.
+<br>
+```{r echo=FALSE}
+funcGA$Funding <- signif(funcGA$Funding, 5)
+funcGA$Funding <- currency(funcGA$Funding, digits = 0L)
+funcGA%>% select(Category, Funding)%>% kbl() %>%
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed", "responsive"), full_width = F, html_font="Open Sans", font_size = 14)%>%  
+  add_header_above(c("Georgia Funding by Category"=2))%>%
+  row_spec(1:15, color  = "black")%>%
+  column_spec(1, "10cm")%>%
+  column_spec(2, "3cm")
+```
+
+### Kentucky
+```{r, echo=FALSE, fig.align='center'}
+
+#function and award type data, filter to Kentucky
+funcKY <-dplyr::filter(funData, recipient_state=="KY")%>%
+  group_by(budget_subfunction) %>% dplyr::summarise(
+  Funding = sum(transaction_obligated_amount)
+  )%>% as.data.frame()
+
+funcKY$Percent <- 100*(funcKY$Funding/sum(funcKY$Funding))
+funcKY$Percent <- format(round(funcKY$Percent, 2), nsmall=2)
+funcKY$Percent <- as.numeric(funcKY$Percent)
+
+funcKY$zone.start <- with(funcKY, c(0, cumsum(Percent)[-length(Percent)]))  
+funcKY$zone.end <- with(funcKY, cumsum(Percent))  
+funcKY$label.point <- with(funcKY, (100-(zone.start + zone.end) / 2)) 
+
+colnames(funcKY)[1] <- "Category"
+
+pie <- ggplot(funcKY, aes(x="", y=Percent, fill=Category))+
+  geom_bar(width = 1, stat = "identity")+
+  coord_polar("y", start=0)+
+  scale_fill_manual(values=c("#FFA07A","#F08080", "#900C3F", "#C70039", "#D4442D","#00869F", "#6171AF","#DCB6D0","#C799C8","#7B7B7B","#585757")) +
+  geom_text_repel(data = funcKY,
+                   aes(y = label.point, label = ifelse(Percent>10,paste0(Percent, "%"),""), family="Open Sans"),
+                   size = 4.5, nudge_x = 1, show.legend = FALSE) +
+  ggtitle("Kentucky Funding by Category")+
+  theme_void(base_family="Open Sans")
+pie
+```
+
+
+As of July 13, 2023, the federal government had committed `r SEdata$Funding[7]` in Infrastructure Investment and Jobs Act funding to Kentucky, or about `r SEdata$perCapita[7]` per person. Kentucky ranks 7th for funding committed within the Southeast and 2nd on a per capita basis.
+<br>
+``` {r echo=FALSE}
+funcKY$Funding <- signif(funcKY$Funding, 5)
+funcKY$Funding <- currency(funcKY$Funding, digits = 0L)
+funcKY%>% select(Category, Funding)%>% kbl() %>%
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed", "responsive"), full_width = F, html_font="Open Sans", font_size = 14)%>%  
+  add_header_above(c("Kentucky Funding by Category"=2))%>%
+  row_spec(1:11, color  = "black")%>%
+  column_spec(1, "10cm")%>%
+  column_spec(2, "3cm")
+```
+### Louisiana
+```{r, echo=FALSE, fig.align='center'}
+
+#function and award type data, filter to Louisiana
+funcLA <-dplyr::filter(funData, recipient_state=="LA")%>%
+  group_by(budget_subfunction) %>% dplyr::summarise(
+  Funding = sum(transaction_obligated_amount)
+  )%>% as.data.frame()
+
+funcLA$Percent <- 100*(funcLA$Funding/sum(funcLA$Funding))
+funcLA$Percent <- format(round(funcLA$Percent, 2), nsmall=2)
+funcLA$Percent <- as.numeric(funcLA$Percent)
+
+funcLA$zone.start <- with(funcLA, c(0, cumsum(Percent)[-length(Percent)]))  
+funcLA$zone.end <- with(funcLA, cumsum(Percent))  
+funcLA$label.point <- with(funcLA, (100-(zone.start + zone.end) / 2)) 
+
+colnames(funcLA)[1] <- "Category"
+
+pie <- ggplot(funcLA, aes(x="", y=Percent, fill=Category))+
+  geom_bar(width = 1, stat = "identity")+
+  coord_polar("y", start=0)+
+  scale_fill_manual(values=c("#FFA07A","#900C3F", "#C70039", "#D4442D","#FFF7B3","#AAC5E2","#00869F","#6171AF","#DCB6D0","#C799C8","#7B7B7B","#585757")) +
+  geom_text_repel(data = funcLA,
+                   aes(y = label.point, label = ifelse(Percent>10,paste0(Percent, "%"),""), family="Open Sans"),
+                   size = 4.5, nudge_x = 1, show.legend = FALSE) +
+  ggtitle("Louisiana Funding by Category")+
+  theme_void(base_family= "Open Sans")
+pie
+```
+
+
+As of July 13, 2023, the federal government had committed `r SEdata$Funding[8]` in Infrastructure Investment and Jobs Act funding to Louisiana, or about `r SEdata$perCapita[8]` per person. Louisiana ranks 9th for funding committed within the Southeast and 4th on a per capita basis.
+<br>
+``` {r echo=FALSE}
+funcLA$Funding <- signif(funcLA$Funding, 5)
+funcLA$Funding <- currency(funcLA$Funding, digits = 0L)
+funcLA%>% select(Category, Funding)%>% kbl() %>%
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed", "responsive"), full_width = F, html_font="Open Sans", font_size = 14)%>%  
+  add_header_above(c("Louisiana Funding by Category"=2))%>%
+  row_spec(1:12, color  = "black")%>%
+  column_spec(1, "10cm")%>%
+  column_spec(2, "3cm")
+```
+
+### Mississippi
+```{r, echo=FALSE, fig.align='center'}
+
+#function and award type data, filter to Mississippi
+funcMS <-dplyr::filter(funData, recipient_state=="MS")%>%
+  group_by(budget_subfunction) %>% dplyr::summarise(
+  Funding = sum(transaction_obligated_amount)
+  )%>% as.data.frame()
+
+funcMS$Percent <- 100*(funcMS$Funding/sum(funcMS$Funding))
+funcMS$Percent <- format(round(funcMS$Percent, 2), nsmall=2)
+funcMS$Percent <- as.numeric(funcMS$Percent)
+
+funcMS$zone.start <- with(funcMS, c(0, cumsum(Percent)[-length(Percent)]))  
+funcMS$zone.end <- with(funcMS, cumsum(Percent))  
+funcMS$label.point <- with(funcMS, (100-(zone.start + zone.end) / 2)) 
+
+colnames(funcMS)[1] <- "Category"
+
+pie <- ggplot(funcMS, aes(x="", y=Percent, fill=Category))+
+  geom_bar(width = 1, stat = "identity")+
+  coord_polar("y", start=0)+
+  scale_fill_manual(values=c("#FFA07A","#900C3F", "#C70039", "#D4442D","#00869F", "#6171AF","#DCB6D0","#C799C8","#7B7B7B","#585757")) +
+  geom_text_repel(data = funcMS,
+                   aes(y = label.point, label = ifelse(Percent>10,paste0(Percent, "%"),""),family="Open Sans"),
+                   size = 4.5, nudge_x = 1, show.legend = FALSE) +
+  ggtitle("Mississippi Funding by Category")+
+  theme_void(base_family="Open Sans")
+pie
+```
+
+
+As of July 13, 2023, the federal government had committed `r SEdata$Funding[11]` in Infrastructure Investment and Jobs Act funding to Mississippi, or about `r SEdata$perCapita[11]` per person. Mississippi ranks 11th for funding committed within the Southeast and 5th on a per capita basis.
+<br>
+``` {r echo=FALSE}
+funcMS$Funding <- signif(funcMS$Funding, 5)
+funcMS$Funding <- currency(funcMS$Funding, digits = 0L)
+funcMS%>% select(Category, Funding)%>% kbl() %>%
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed", "responsive"), full_width = F, html_font="Open Sans", font_size = 14)%>%  
+  add_header_above(c("Mississippi Funding by Category"=2))%>%
+  row_spec(1:10, color  = "black")%>%
+  column_spec(1, "10cm")%>%
+  column_spec(2, "3cm")
+```
+
+### North Carolina
+```{r, echo=FALSE, fig.align='center'}
+
+#function and award type data, filter to NC
+funcNC <-dplyr::filter(funData, recipient_state=="NC")%>%
+  group_by(budget_subfunction) %>% dplyr::summarise(
+  Funding = sum(transaction_obligated_amount)
+  )%>% as.data.frame()
+
+funcNC$Percent <- 100*(funcNC$Funding/sum(funcNC$Funding))
+funcNC$Percent <- format(round(funcNC$Percent, 2), nsmall=2)
+funcNC$Percent <- as.numeric(funcNC$Percent)
+
+funcNC$zone.start <- with(funcNC, c(0, cumsum(Percent)[-length(Percent)]))  
+funcNC$zone.end <- with(funcNC, cumsum(Percent))  
+funcNC$label.point <- with(funcNC, (100-(zone.start + zone.end) / 2)) 
+
+colnames(funcNC)[1] <- "Category"
+
+pie <- ggplot(funcNC, aes(x="", y=Percent, fill=Category))+
+  geom_bar(width = 1, stat = "identity")+
+  coord_polar("y", start=0)+
+  scale_fill_manual(values=c("#FFA07A","#900C3F", "#C70039", "#D4442D","#52BE80","#75C7D3", "#00869F", "#6171AF","#DCB6D0","#C799C8", "#D2D2D2", "#7B7B7B","#585757")) +
+  geom_text_repel(data = funcNC,
+                   aes(y = label.point, label = ifelse(Percent>10,paste0(Percent, "%"),""),family="Open Sans"),
+                   size = 4.5, nudge_x = 1, show.legend = FALSE) +
+  ggtitle("North Carolina Funding by Category")+
+  theme_void(base_family="Open Sans")
+pie
+```
+
+
+As of July 13, 2023, the federal government had committed `r SEdata$Funding[3]` in Infrastructure Investment and Jobs Act funding to North Carolina, or about `r SEdata$perCapita[3]` per person. North Carolina ranks 3rd for funding committed within the Southeast and 9th on a per capita basis.
+<br>
+``` {r echo=FALSE, fig.align='center'}
+funcNC$Funding <- signif(funcNC$Funding, 5)
+funcNC$Funding <- currency(funcNC$Funding, digits = 0L)
+funcNC%>% select(Category, Funding)%>% kbl() %>%
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed", "responsive"), full_width = F, html_font="Open Sans", font_size = 14)%>%  
+  add_header_above(c("North Carolina Funding by Category"=2))%>%
+  row_spec(1:13, color  = "black")%>%
+  column_spec(1, "10cm")%>%
+  column_spec(2, "3cm")
+```
+
+### South Carolina
+```{r, echo=FALSE, fig.align='center'}
+
+#function and award type data, filter to SC
+funcSC <-dplyr::filter(funData, recipient_state=="SC")%>%
+  group_by(budget_subfunction) %>% dplyr::summarise(
+  Funding = sum(transaction_obligated_amount)
+  )%>% as.data.frame()
+
+funcSC$Percent <- 100*(funcSC$Funding/sum(funcSC$Funding))
+funcSC$Percent <- format(round(funcSC$Percent, 2), nsmall=2)
+funcSC$Percent <- as.numeric(funcSC$Percent)
+
+funcSC$zone.start <- with(funcSC, c(0, cumsum(Percent)[-length(Percent)]))  
+funcSC$zone.end <- with(funcSC, cumsum(Percent))  
+funcSC$label.point <- with(funcSC, (100-(zone.start + zone.end) / 2)) 
+
+colnames(funcSC)[1] <- "Category"
+
+pie <- ggplot(funcSC, aes(x="", y=Percent, fill=Category))+
+  geom_bar(width = 1, stat = "identity")+
+  coord_polar("y", start=0)+
+  scale_fill_manual(values=c("#FFA07A","#F08080", "#900C3F", "#C70039", "#D4442D","#FFF7B3","#00869F", "#6171AF","#DCB6D0","#C799C8", "#D2D2D2", "#7B7B7B","#585757")) +
+  geom_text_repel(data = funcSC,
+                   aes(y = label.point, label = ifelse(Percent>10,paste0(Percent, "%"),""), family="Open Sans"),
+                   size = 4.5, nudge_x = 1, show.legend = FALSE) +
+  ggtitle("South Carolina Funding by Category")+
+  theme_void(base_family="Open Sans")
+pie
+```
+
+
+As of July 13, 2023, the federal government had committed `r SEdata$Funding[10]` in Infrastructure Investment and Jobs Act funding to South Carolina, or about `r SEdata$perCapita[10]` per person. South Carolina ranks 10th for funding committed within the Southeast and 10th on a per capita basis.
+<br>
+``` {r echo=FALSE}
+funcSC$Funding <- signif(funcSC$Funding, 5)
+funcSC$Funding <- currency(funcSC$Funding, digits = 0L)
+funcSC%>% select(Category, Funding)%>% kbl() %>%
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed", "responsive"), full_width = F, html_font="Open Sans", font_size = 14)%>%  
+  add_header_above(c("South Carolina Funding by Category"=2))%>%
+  row_spec(1:13, color  = "black")%>%
+  column_spec(1, "10cm")%>%
+  column_spec(2, "3cm")
+```
+
+### Tennessee
+```{r, echo=FALSE, fig.align='center'}
+
+#function and award type data, filter to Tennessee
+funcTN <-dplyr::filter(funData, recipient_state=="TN")%>%
+  group_by(budget_subfunction) %>% dplyr::summarise(
+  Funding = sum(transaction_obligated_amount)
+  )%>% as.data.frame()
+
+funcTN$Percent <- 100*(funcTN$Funding/sum(funcTN$Funding))
+funcTN$Percent <- format(round(funcTN$Percent, 2), nsmall=2)
+funcTN$Percent <- as.numeric(funcTN$Percent)
+
+funcTN$zone.start <- with(funcTN, c(0, cumsum(Percent)[-length(Percent)]))  
+funcTN$zone.end <- with(funcTN, cumsum(Percent))  
+funcTN$label.point <- with(funcTN, (100-(zone.start + zone.end) / 2)) 
+
+colnames(funcTN)[1] <- "Category"
+
+pie <- ggplot(funcTN, aes(x="", y=Percent, fill=Category))+
+  geom_bar(width = 1, stat = "identity")+
+  coord_polar("y", start=0)+
+  scale_fill_manual(values=c("#FFA07A","#F08080", "#900C3F", "#C70039", "#D4442D","#FFF7B3","#AAC5E2","#00869F","#6171AF","#DCB6D0","#C799C8", "#D2D2D2", "#7B7B7B","#585757")) +
+  geom_text_repel(data = funcTN,
+                   aes(y = label.point, label = ifelse(Percent>10,paste0(Percent, "%"),""),family="Open Sans"),
+                   size = 4.5, nudge_x = 1, show.legend = FALSE) +
+  ggtitle("Tennessee Funding by Category")+
+  theme_void(base_family="Open Sans")
+pie
+```
+
+
+As of July 13, 2023, the federal government had committed `r SEdata$Funding[5]` in Infrastructure Investment and Jobs Act funding to Tennessee, or about `r SEdata$perCapita[5]` per person. Tennessee ranks 5th for funding committed within the Southeast and 7th on a per capita basis.
+<br>
+``` {r echo=FALSE}
+funcTN$Funding <- signif(funcTN$Funding, 5)
+funcTN$Funding <- currency(funcTN$Funding, digits = 0L)
+funcTN%>% select(Category, Funding)%>% kbl() %>%
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed", "responsive"), full_width = F, html_font="Open Sans", font_size = 14)%>%  
+  add_header_above(c("Tennessee Funding by Category"=2))%>%
+  row_spec(1:14, color  = "black")%>%
+  column_spec(1, "10cm")%>%
+  column_spec(2, "3cm")
+```
+
+### Virginia
+```{r, echo=FALSE, fig.align='center'}
+
+#function and award type data, filter to Virginia
+funcVA <-dplyr::filter(funData, recipient_state=="VA")%>%
+  group_by(budget_subfunction) %>% dplyr::summarise(
+  Funding = sum(transaction_obligated_amount)
+  )%>% as.data.frame()
+
+funcVA$Percent <- 100*(funcVA$Funding/sum(funcVA$Funding))
+funcVA$Percent <- format(round(funcVA$Percent, 2), nsmall=2)
+funcVA$Percent <- as.numeric(funcVA$Percent)
+
+funcVA$zone.start <- with(funcVA, c(0, cumsum(Percent)[-length(Percent)]))  
+funcVA$zone.end <- with(funcVA, cumsum(Percent))  
+funcVA$label.point <- with(funcVA, (100-(zone.start + zone.end) / 2)) 
+
+colnames(funcVA)[1] <- "Category"
+
+pie <- ggplot(funcVA, aes(x="", y=Percent, fill=Category))+
+  geom_bar(width = 1, stat = "identity")+
+  coord_polar("y", start=0)+
+  scale_fill_manual(values=c("#FFA07A","#900C3F", "#C70039", "#D4442D", "#FCB616","#FFF7B3","#8FED94", "#52BE80", "#AAC5E2", "#75C7D3", "#00869F", "#6171AF","#DCB6D0","#C799C8", "#D2D2D2", "#7B7B7B","#585757")) +
+  geom_text_repel(data = funcVA,
+                   aes(y = label.point, label = ifelse(Percent>10,paste0(Percent, "%"),""),family="Open Sans"),
+                   size = 4.5, nudge_x = 1, show.legend = FALSE) +
+  ggtitle("Virginia Funding by Category")+
+  theme_void(base_family="Open Sans")
+pie
+```
+
+As of July 13, 2023, the federal government had committed `r SEdata$Funding[4]` in Infrastructure Investment and Jobs Act funding to Virginia, or about `r SEdata$perCapita[4]` per person. Virginia ranks 4th for funding committed within the Southeast and 8th on a per capita basis.
+<br>
+``` {r echo=FALSE}
+funcVA$Funding <- signif(funcVA$Funding, 5)
+funcVA$Funding <- currency(funcVA$Funding, digits = 0L)
+funcVA%>% select(Category, Funding)%>% kbl() %>%
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed", "responsive"), full_width = F, html_font="Open Sans", font_size = 14)%>%  
+  add_header_above(c("Virginia Funding by Category"=2))%>%
+  row_spec(1:17, color  = "black")%>%
+  column_spec(1, "10cm")%>%
+  column_spec(2, "3cm")
+```
