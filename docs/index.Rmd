@@ -149,6 +149,18 @@ pop2022$X.3 <- as.numeric(gsub(",","",pop2022$X.3))
 totPop <- sum(pop2022$X.3)
 ```
 ## Bipartisan Infrastructure Law Funding in the Southeast
+<br>
+Since 2021 there have been significant increases in federal funding dedicated to climate, energy, and environmental initiatives. Landmark legislation like the Bipartisan Infrastructure Law (BIL) and Inflation Reduction Act (IRA) mark the largest investments in climate mitigation in American history. While the resources available through these laws provide unprecedented opportunities for communities across the United States, the Southeast Energy Efficiency Alliance (SEEA) wants to ensure that this funding is accessible to all communities in our region, particularly those who have been underserved by federal resources in the past. 
+<br>
+<br>
+This dashboard reveals trends in federal funding awards across the Southeast to understand where funding is going, what it is being used for, and ultimately how accessible it has been for communities without a history of substantial federal investments. Using this information, we aim to support decision-makers across the region in applying for funding and supporting under-resourced communities. This dashboard focuses on funding available through the BIL, and we plan to address additional sources of funding, including the Inflation Reduction Act (IRA) in future versions of this whitepaper as more funding is allocated.
+<br>
+<br>
+The Infrastructure Investment and Jobs Act, also known as the Bipartisan Infrastructure Law (BIL), was passed in November 2021 and allocates $1.2 trillion over ten years in funding for infrastructure projects including roads, public transit, broadband, and electric grid upgrades. As federal agencies continue to allocate BIL funding, this map shows how much funding recipients in the Southeast have received as of July 13, 2023. Funding is tied to the recipient's location, which is often distinct from the place of performance, meaning that the funding does not necessarily fund work in that state However, the recipient location is the best available indicator of where this funding is invested.
+<br>
+<br>
+Almost half of the new funding, or about $274 billion, will be allocated by the Department of Transportation (USDOT). Other agencies, including the Environmental Protection Agency (EPA), the Department of Energy (DOE), the Department of Commerce (DOC), and the Department of Interior (DOI) will each award smaller amounts of funding, between $28 and $67 billion each (Badlam et al., 2021). Federal agencies will use the funding for operations or award most of the funding through direct payments, competitive grants, cooperative agreements, or will allocate it based on formulas that provide pre-determined amounts for each state/territory.
+<br>
 ```{r, echo=FALSE, message=FALSE, warning=FALSE, echo=FALSE, results='hide', fig.show='hide'}
 BIL$StateFunding <- formattable::currency(BIL$StateFunding)
 #tmap
@@ -226,8 +238,6 @@ tm_layout(main.title = "Bipartisan Infrastructure Law Funding in the Southeast",
       legend.title.size= 1)+
   tm_view(set.view=c(-83,35,5))
 ```
-<br>
-The Infrastructure Investment and Jobs Act, also known as the Bipartisan Infrastructure Law (BIL), was passed in November 2021 and allocates $1.2 trillion over ten years in funding for infrastructure projects including roads, public transit, broadband, and electric grid upgrades. As federal agencies continue to allocate BIL funding, this map shows how much funding recipients in the Southeast have received as of July 13, 2023. Funding is tied to the recipient's location, which is often distinct from the place of performance, meaning that the funding does not necessarily fund work in that state However, the recipient location is the best available indicator of where this funding is invested.
 
 ## Funding Analysis {.tabset}
 ### Southeast
@@ -355,9 +365,9 @@ funcSE%>% select(Category, Funding)%>% kbl() %>%
   column_spec(2,"3cm")
 ```
 
-### Southeast Energy Funding 
+### Energy Funding 
 
-About $360.2 million has been committed to energy conservation in the Southeast, with an additional $51.2 million in energy production and $4.6 million in energy regulation. The majority of committed energy funding in the BIL has gone to state weatherization programs with $227.7 million and then to state energy offices for more general use with $62.0 million. The amount of BIL weatherization program funding varies drastically by state, with DOE committing about $46.8 million to the Florida Department of Commerce and about one-tenth of that to the Arkansas Division of Environmental Quality. The funding committed to state energy offices for general programs also varies drastically, and the data indicates that DOE has not yet committed any state energy program funding to Mississippi. Notably, DOE has committed only $200,000 to Georgia, Louisiana, and North Carolina, which is much less than the 5 million or more committed to every other state in the Southeast.
+BIL funding represents one of the most significant investments in energy efficiency in history. About $360.2 million has been committed to energy conservation in the Southeast, with an additional $51.2 million in energy production and $4.6 million in energy regulation. Most committed energy funding is to support DOE’s Weatherization Assistance Program (WAP), with $227.7 million, and State Energy Program, with $62.0 million. WAP funds home improvements such as insulation, caulking, and replacement of inefficient heating and cooling systems for eligible income-qualified households, with the goal of improving health, affordability, and safety for people who cannot afford upfront capital needed for weatherization. State Energy Program funding can be used for a variety of applications, including energy efficiency, renewable energy, alternative fuels and electric vehicles, and more. 
 
 ``` {r echo=FALSE}
 ###Weatherization Assistance Program Funding
@@ -511,9 +521,8 @@ pie
 ```
 
 
-As of July 13, 2023, the federal government had committed `r SEdata$Funding[6]` in Infrastructure Investment and Jobs Act funding to Alabama, or about `r SEdata$perCapita[6]` per person. Alabama ranks 6th for funding committed within the Southeast and 3rd on a per capita basis.
-<br>
 ```{r echo=FALSE}
+funcAL <- funcAL %>% add_row(Category = "Total", Funding=sum(funcAL$Funding))
 funcAL$Funding <- signif(funcAL$Funding, 5)
 funcAL$Funding <- currency(funcAL$Funding, digits = 0L)
 funcAL%>% select(Category, Funding)%>% kbl() %>%
@@ -554,9 +563,8 @@ pie
 ```
 
 
-As of July 13, 2023, the federal government had committed `r SEdata$Funding[9]` in Infrastructure Investment and Jobs Act funding to Arkansas, or about `r SEdata$perCapita[9]` per person. Arkansas ranks 9th for funding committed within the Southeast and 1st on a per capita basis.
-<br>
 ``` {r echo=FALSE}
+funcAR <- funcAR %>% add_row(Category = "Total", Funding=sum(funcAR$Funding))
 funcAR$Funding <- signif(funcAR$Funding, 5)
 funcAR$Funding <- currency(funcAR$Funding, digits = 0L)
 funcAR%>% select(Category, Funding)%>% kbl() %>%
@@ -597,9 +605,8 @@ pie <- ggplot(funcFL, aes(x="", y=Percent, fill=Category))+
 pie
 ```
 
-As of July 13, 2023, the federal government had committed `r SEdata$Funding[1]` in Infrastructure Investment and Jobs Act funding to Florida, or about `r SEdata$perCapita[1]` per person. Florida ranks 1st for funding committed within the Southeast and 11th on a per capita basis.
-<br>
 ```{r echo=FALSE}
+funcFL <- funcFL %>% add_row(Category = "Total", Funding=sum(funcFL$Funding))
 funcFL$Funding <- signif(funcFL$Funding, 5)
 funcFL$Funding <- currency(funcFL$Funding, digits = 0L)
 funcFL%>% select(Category, Funding)%>% kbl() %>%
@@ -640,9 +647,8 @@ pie
 ```
 
 
-As of July 13, 2023, the federal government had committed `r SEdata$Funding[2]` in Infrastructure Investment and Jobs Act funding to Georgia, or about `r SEdata$perCapita[2]` per person. Georgia ranks 2nd for funding committed within the Southeast and 6th on a per capita basis.
-<br>
 ```{r echo=FALSE}
+funcGA <- funcGA %>% add_row(Category = "Total", Funding=sum(funcGA$Funding))
 funcGA$Funding <- signif(funcGA$Funding, 5)
 funcGA$Funding <- currency(funcGA$Funding, digits = 0L)
 funcGA%>% select(Category, Funding)%>% kbl() %>%
@@ -685,9 +691,8 @@ pie
 ```
 
 
-As of July 13, 2023, the federal government had committed `r SEdata$Funding[7]` in Infrastructure Investment and Jobs Act funding to Kentucky, or about `r SEdata$perCapita[7]` per person. Kentucky ranks 7th for funding committed within the Southeast and 2nd on a per capita basis.
-<br>
 ``` {r echo=FALSE}
+funcKY <- funcKY %>% add_row(Category = "Total", Funding=sum(funcKY$Funding))
 funcKY$Funding <- signif(funcKY$Funding, 5)
 funcKY$Funding <- currency(funcKY$Funding, digits = 0L)
 funcKY%>% select(Category, Funding)%>% kbl() %>%
@@ -729,9 +734,8 @@ pie
 ```
 
 
-As of July 13, 2023, the federal government had committed `r SEdata$Funding[8]` in Infrastructure Investment and Jobs Act funding to Louisiana, or about `r SEdata$perCapita[8]` per person. Louisiana ranks 9th for funding committed within the Southeast and 4th on a per capita basis.
-<br>
 ``` {r echo=FALSE}
+funcLA <- funcLA %>% add_row(Category = "Total", Funding=sum(funcLA$Funding))
 funcLA$Funding <- signif(funcLA$Funding, 5)
 funcLA$Funding <- currency(funcLA$Funding, digits = 0L)
 funcLA%>% select(Category, Funding)%>% kbl() %>%
@@ -774,9 +778,8 @@ pie
 ```
 
 
-As of July 13, 2023, the federal government had committed `r SEdata$Funding[11]` in Infrastructure Investment and Jobs Act funding to Mississippi, or about `r SEdata$perCapita[11]` per person. Mississippi ranks 11th for funding committed within the Southeast and 5th on a per capita basis.
-<br>
 ``` {r echo=FALSE}
+funcMS <- funcMS %>% add_row(Category = "Total", Funding=sum(funcMS$Funding))
 funcMS$Funding <- signif(funcMS$Funding, 5)
 funcMS$Funding <- currency(funcMS$Funding, digits = 0L)
 funcMS%>% select(Category, Funding)%>% kbl() %>%
@@ -818,10 +821,8 @@ pie <- ggplot(funcNC, aes(x="", y=Percent, fill=Category))+
 pie
 ```
 
-
-As of July 13, 2023, the federal government had committed `r SEdata$Funding[3]` in Infrastructure Investment and Jobs Act funding to North Carolina, or about `r SEdata$perCapita[3]` per person. North Carolina ranks 3rd for funding committed within the Southeast and 9th on a per capita basis.
-<br>
 ``` {r echo=FALSE, fig.align='center'}
+funcNC <- funcNC %>% add_row(Category = "Total", Funding=sum(funcNC$Funding))
 funcNC$Funding <- signif(funcNC$Funding, 5)
 funcNC$Funding <- currency(funcNC$Funding, digits = 0L)
 funcNC%>% select(Category, Funding)%>% kbl() %>%
@@ -863,10 +864,8 @@ pie <- ggplot(funcSC, aes(x="", y=Percent, fill=Category))+
 pie
 ```
 
-
-As of July 13, 2023, the federal government had committed `r SEdata$Funding[10]` in Infrastructure Investment and Jobs Act funding to South Carolina, or about `r SEdata$perCapita[10]` per person. South Carolina ranks 10th for funding committed within the Southeast and 10th on a per capita basis.
-<br>
 ``` {r echo=FALSE}
+funcSC <- funcSC %>% add_row(Category = "Total", Funding=sum(funcSC$Funding))
 funcSC$Funding <- signif(funcSC$Funding, 5)
 funcSC$Funding <- currency(funcSC$Funding, digits = 0L)
 funcSC%>% select(Category, Funding)%>% kbl() %>%
@@ -908,10 +907,8 @@ pie <- ggplot(funcTN, aes(x="", y=Percent, fill=Category))+
 pie
 ```
 
-
-As of July 13, 2023, the federal government had committed `r SEdata$Funding[5]` in Infrastructure Investment and Jobs Act funding to Tennessee, or about `r SEdata$perCapita[5]` per person. Tennessee ranks 5th for funding committed within the Southeast and 7th on a per capita basis.
-<br>
 ``` {r echo=FALSE}
+funcTN <- funcTN %>% add_row(Category = "Total", Funding=sum(funcTN$Funding))
 funcTN$Funding <- signif(funcTN$Funding, 5)
 funcTN$Funding <- currency(funcTN$Funding, digits = 0L)
 funcTN%>% select(Category, Funding)%>% kbl() %>%
@@ -953,9 +950,8 @@ pie <- ggplot(funcVA, aes(x="", y=Percent, fill=Category))+
 pie
 ```
 
-As of July 13, 2023, the federal government had committed `r SEdata$Funding[4]` in Infrastructure Investment and Jobs Act funding to Virginia, or about `r SEdata$perCapita[4]` per person. Virginia ranks 4th for funding committed within the Southeast and 8th on a per capita basis.
-<br>
 ``` {r echo=FALSE}
+funcVA <- funcVA %>% add_row(Category = "Total", Funding=sum(funcVA$Funding))
 funcVA$Funding <- signif(funcVA$Funding, 5)
 funcVA$Funding <- currency(funcVA$Funding, digits = 0L)
 funcVA%>% select(Category, Funding)%>% kbl() %>%
