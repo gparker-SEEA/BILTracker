@@ -533,7 +533,7 @@ funcAL%>% select(Category, Funding)%>% kbl() %>%
   column_spec(2, "3cm")
 ```
 
-## Spotlight on Projects
+#### Spotlight on Projects
 Anovion: The Department of Energy committed $117 million to Anovion to build a facility in Colbert County, Alabama, that can produce 35,000 tons annually of synthetic graphite anode material, which is used for EV and critical energy storage lithium-ion batteries. This grant will also be used in part to expand capacity at Anovion’s plant in New York.
 
 City of Birmingham: The Department of Transportation committed $800,000 to the City of Birmingham, Alabama, to study and produce recommendations about how to reduce the negative impacts of rail and highway infrastructure on historically Black communities and historic neighborhoods in general.
@@ -581,7 +581,7 @@ funcAR%>% select(Category, Funding)%>% kbl() %>%
   column_spec(2, "3cm")
 ```
 
-## Spotlight on Projects
+#### Spotlight on Projects
 Arkansas Black Mayor’s Association (ABMA): The Natural Resources Conservation Service committed $62.1 million to the ABMA for watershed protection and flood prevention in several cities across the state. 
 
 Westminster Village of the Mid-South: The Environmental Protection Agency committed $1 million to a retirement community in Blytheville, Arkansas, that provides affordable housing on a former air force base, a site contaminated with inorganic substances. The grant will help the nonprofit clean up the site to enhance the safety of its residents.
@@ -630,7 +630,7 @@ funcFL%>% select(Category, Funding)%>% kbl() %>%
   column_spec(2, "3cm")
 ```
 
-##Spotlight on Projects
+####Spotlight on Projects
 Central Florida Regional Transportation Authority (CFRTA): The Federal Transit Authority committed $16.1 million to CFRTA in Orlando, Florida to buy battery electric buses and charging infrastructure.
 
 Army Corps of Engineers (ACE) South Florida Ecosystem Restoration Program: The ACE committed $1.1 billion to reconnect habitats in the Everglades, which have been isolated by the impacts of human development. According to the Biden Administration, this is the single largest investment in Everglade’s’ history.
@@ -680,7 +680,7 @@ funcGA%>% select(Category, Funding)%>% kbl() %>%
   column_spec(2, "3cm")
 ```
 
-## Spotlight on Projects
+#### Spotlight on Projects
 City of Atlanta: The Environmental Protection Agency committed $3.9 million to the City of Atlanta for brownfield remediation at five sites. The sites will be redeveloped or repurposed into affordable housing units, an environmental education center, parks, and mixed-use sites.
 
 Solvay: The Department of Energy committed $178 million to Solvary to build a polyvinylidene fluoride (PVDF) facility in Augusta, Georgia. The facility is expected to supply over 5 million EV batteries per year at full capacity and create more than 100 highly skilled manufacturing jobs.
@@ -729,7 +729,7 @@ funcKY%>% select(Category, Funding)%>% kbl() %>%
   column_spec(2, "3cm")
 ```
 
-## Spotlight on Projects
+#### Spotlight on Projects
 Kentucky Energy and Environment Cabinet: The Department of Interior committed $74.3 million to Kentucky for mine reclamation.
 
 Ascend Elements: The Department of Energy committed $316 million to Ascend Elements to build a manufacturing and EV batteries recycling facility. The facility will produce enough precursor and battery-ready cathode active materials for 250,000 EVs per year.
@@ -778,7 +778,7 @@ funcLA%>% select(Category, Funding)%>% kbl() %>%
   column_spec(2, "3cm")
 ```
 
-## Spotlight on Projects
+#### Spotlight on Projects
 Jefferson Parish, Louisiana: The Department of Transportation committed $6.9 million to the Jefferson Parish, Louisiana, to purchase three diesel-electric buses and construct new administrative and maintenance buildings.
 
 Louisiana Department of Natural Resources: The Department of Interior committed $25 million to the Louisiana DNR to plug and restore orphaned wells, implement methane monitoring protocols, and improve water quality monitoring.
@@ -827,7 +827,7 @@ funcMS%>% select(Category, Funding)%>% kbl() %>%
   column_spec(2, "3cm")
 ```
 
-## Spotlight on Projects
+#### Spotlight on Projects
 Syrah: The Department of Energy committed $220 million to expand Syrah's natural graphite active anode material (AAM) facility. This facility will be the first large-scale natural graphite AAM facility in the United States, used for EV and critical energy storage batteries.
 
 Mississippi State Department of Health: The EPA committed $19.4 million to the Mississippi State Department of Health for improving public water systems, including fixing leaky or old pipes, improving the water supply, replacing or constructing finished water storage tanks, and more.
@@ -876,6 +876,7 @@ funcNC%>% select(Category, Funding)%>% kbl() %>%
   column_spec(2, "3cm")
 ```
 
+#### Spotlight on Projects
 Applied Materials: The Department of Energy committed $100 million to Applied Materials to build a pre-lithiation and lithium anode facility to support the EV battery supply chain. Applied Materials will build the facility in North Carolina and has not yet finalized an exact location.
 
 Eastern Band of Cherokee Indians: The Department of Commerce committed $500,000 to the Eastern Band of Cherokee Indians for the initial phase of a broadband initiative, including rights-of-way, appraisals, project inspection fees, and project management.
@@ -923,7 +924,7 @@ funcSC%>% select(Category, Funding)%>% kbl() %>%
   column_spec(2, "3cm")
 ```
 
-## Spotlight on Projects
+#### Spotlight on Projects
 City of Clemson, SC: The Department of Commerce committed $3.9 million to the City of Clemson, South Carolina, for zero-emission battery electric buses to replace diesel buses that have exceeded their useful life.
 
 ### Tennessee
@@ -969,7 +970,7 @@ funcTN%>% select(Category, Funding)%>% kbl() %>%
   column_spec(2, "3cm")
 ```
 
-## Spotlight on Projects
+#### Spotlight on Projects
 Economic Development Growth Engine for Memphis and Shelby County: The Environmental Protection Agency committed $1 million to finance a revolving loan fund for brownfield cleanup. The grant will specifically target four sites, including a historic school for African Americans and a site at which the State of Tennessee stored contaminated soil in the 1960s.
 
 Piedmont Lithium: The Department of Energy committed $141.7 million to Piedmont Lithium to build a lithium hydroxide facility in Etowah, Tennessee that will strengthen the domestic EV battery supply chain. The facility is expected to produce 30,000 metric tons of lithium hydroxide per year, doubling the current U.S. production.
@@ -1017,5 +1018,5 @@ funcVA%>% select(Category, Funding)%>% kbl() %>%
   column_spec(2, "3cm")
 ```
 
-#Spotlight on Projects
+####Spotlight on Projects
 National Association of State Energy Officials: The Department of Energy awarded $1.5 million to NASEO for their work building a national electric vehicle infrastructure network.
