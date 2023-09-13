@@ -630,7 +630,7 @@ funcFL%>% select(Category, Funding)%>% kbl() %>%
   column_spec(2, "3cm")
 ```
 
-####Spotlight on Projects
+#### Spotlight on Projects
 Central Florida Regional Transportation Authority (CFRTA): The Federal Transit Authority committed $16.1 million to CFRTA in Orlando, Florida to buy battery electric buses and charging infrastructure.
 
 Army Corps of Engineers (ACE) South Florida Ecosystem Restoration Program: The ACE committed $1.1 billion to reconnect habitats in the Everglades, which have been isolated by the impacts of human development. According to the Biden Administration, this is the single largest investment in Everglade’s’ history.
@@ -1018,5 +1018,5 @@ funcVA%>% select(Category, Funding)%>% kbl() %>%
   column_spec(2, "3cm")
 ```
 
-####Spotlight on Projects
+#### Spotlight on Projects
 National Association of State Energy Officials: The Department of Energy awarded $1.5 million to NASEO for their work building a national electric vehicle infrastructure network.
