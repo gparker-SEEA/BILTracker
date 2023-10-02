@@ -78,11 +78,6 @@ colnames(fundByState)[1] <- "FIPS"
 #join fundbyCounty to SEcounties
 BIL <- left_join(SETerr, fundByState, by = "FIPS")
 
-state_popup <- paste0("<strong>State Name: </strong>", 
-                      str_to_title(BIL$NAME), 
-                      "<br><strong>Total BIL Funding: </strong>", 
-                      formattable::currency(BIL$StateFunding, digits = 0L))
-
 #insert function/award type and population data
 Asst2023_raw <- read.csv("C:/Users/GraceParker/Downloads/2023_FederalFundingTracker/BIL_FY2023_P8_wFunction/FY2023P01-P08_Assistance.csv")
 Con2023_raw <- read.csv("C:/Users/GraceParker/Downloads/2023_FederalFundingTracker/BIL_FY2023_P8_wFunction/FY2023P01-P08_Contracts.csv")
@@ -103,7 +98,195 @@ funData <- rbind(funData, Unl2022_raw)
 
 #select
 funData <- funData[!is.na(funData$transaction_obligated_amount),]
-funData <-select(funData, budget_subfunction, awarding_agency_name, awarding_subagency_name, transaction_obligated_amount, recipient_state, recipient_county, award_type)
+funData <-select(funData, budget_subfunction, awarding_agency_name, awarding_subagency_name, transaction_obligated_amount, recipient_state, recipient_county, award_type, recipient_name)
+
+NEEP <- c("WV","DC","NJ","MD","PA","NY","VT","MA","RI","CT","NH","ME","DE")
+SEEA <- c("AR","AL","FL","GA","KY","LA","MS","NC","SC","TN","VA")
+MEEA <- c("OH","IN","MI","KS","NE","SD","ND","MN","IA","MO","IL","WI")
+SPEER <- c("TX","OK")
+SWEEP <- c("NM","AZ","CO","UT","NV","WY")
+NEEA <- c("MT","ID","OR","WA")
+Territories <- c("PR","AS","GU","MP","VI")
+International <- c("FM", "PW","MH")
+funData_national <- funData
+funData_national <- funData_national%>% group_by(recipient_state)%>%
+  dplyr::summarise(Funding = sum(transaction_obligated_amount)) %>% 
+  as.data.frame()
+Region = ifelse(funData_national$recipient_state %in% NEEP,"NEEP","")
+funData_national = cbind(Region,funData_national)
+funData_national$Region = ifelse(funData_national$recipient_state %in% SEEA,"SEEA",funData_national$Region)
+funData_national$Region = ifelse(funData_national$recipient_state %in% MEEA,"MEEA",funData_national$Region)
+funData_national$Region = ifelse(funData_national$recipient_state %in% SPEER,"SPEER",funData_national$Region)
+funData_national$Region = ifelse(funData_national$recipient_state %in% SWEEP,"SWEEP",funData_national$Region)
+funData_national$Region = ifelse(funData_national$recipient_state %in% NEEA,"NEEA",funData_national$Region)
+funData_national$Region = ifelse(funData_national$recipient_state == "AK","Alaska",funData_national$Region)
+funData_national$Region = ifelse(funData_national$recipient_state == "CA","California",funData_national$Region)
+funData_national$Region = ifelse(funData_national$recipient_state == "HI","Hawaii",funData_national$Region)
+funData_national$Region = ifelse(funData_national$recipient_state == "","International",funData_national$Region)
+funData_national$Region = ifelse(funData_national$recipient_state %in% International,"International",funData_national$Region)
+funData_national$Region = ifelse(funData_national$recipient_state %in% Territories,"Territories",funData_national$Region)
+
+
+funData_nat_grants <- funData
+funData_nat_grants <- funData_nat_grants%>% filter(award_type=="COOPERATIVE AGREEMENT (B)"|award_type=="PROJECT GRANT (B)")%>%group_by(recipient_state)%>%
+  dplyr::summarise(Funding = sum(transaction_obligated_amount)) %>% 
+  as.data.frame()
+Region = ifelse(funData_nat_grants$recipient_state %in% NEEP,"NEEP","")
+funData_nat_grants = cbind(Region,funData_nat_grants)
+funData_nat_grants$Region = ifelse(funData_nat_grants$recipient_state %in% SEEA,"SEEA",funData_nat_grants$Region)
+funData_nat_grants$Region = ifelse(funData_nat_grants$recipient_state %in% MEEA,"MEEA",funData_nat_grants$Region)
+funData_nat_grants$Region = ifelse(funData_nat_grants$recipient_state %in% SPEER,"SPEER",funData_nat_grants$Region)
+funData_nat_grants$Region = ifelse(funData_nat_grants$recipient_state %in% SWEEP,"SWEEP",funData_nat_grants$Region)
+funData_nat_grants$Region = ifelse(funData_nat_grants$recipient_state %in% NEEA,"NEEA",funData_nat_grants$Region)
+funData_nat_grants$Region = ifelse(funData_nat_grants$recipient_state == "AK","Alaska",funData_nat_grants$Region)
+funData_nat_grants$Region = ifelse(funData_nat_grants$recipient_state == "CA","California",funData_nat_grants$Region)
+funData_nat_grants$Region = ifelse(funData_nat_grants$recipient_state == "HI","Hawaii",funData_nat_grants$Region)
+funData_nat_grants$Region = ifelse(funData_nat_grants$recipient_state == "","International",funData_nat_grants$Region)
+funData_nat_grants$Region = ifelse(funData_nat_grants$recipient_state %in% International,"International",funData_nat_grants$Region)
+funData_nat_grants$Region = ifelse(funData_nat_grants$recipient_state %in% Territories,"Territories",funData_nat_grants$Region)
+funData_nat_grants <- funData_nat_grants %>% select(Region, Funding)%>%
+  group_by(Region)%>%
+  dplyr::summarise(GrantFunding = sum(Funding)) %>% 
+  as.data.frame()
+
+colnames(funData_national)[2] <- "STATE"
+funData_national <- left_join(territories, funData_national, by = "STATE")
+# st_write(funData_national, "C:/Users/GraceParker/Downloads/2023_FederalFundingTracker/RegMap.shp")
+RegMap <- st_read("C:/Users/GraceParker/Downloads/2023_FederalFundingTracker/RegMapDissolved/", quiet=TRUE)
+
+colnames(RegMap)[2] <- "Funding"
+RegMap$Funding <- formattable::currency(RegMap$Funding, digits=0L)
+
+#bin population values:
+MEEA1 <- c(".Ohio",".Indiana",".Michigan",".Kansas",".Nebraska",".South Dakota",".North Dakota",".Minnesota",".Iowa",".Missouri",".Illinois",".Wisconsin")
+NEEP1 <- c(".West Virginia",".District of Columbia",".New Jersey",".Maryland",".Pennsylvania",".New York",".Vermont",".Massachusetts",".Rhode Island",".Connecticut",".New Hampshire",".Maine",".Delaware")
+SEEA1 <- c(".Alabama",".Arkansas",".Florida",".Georgia",".Kentucky",".Louisiana",".Mississippi",".North Carolina",".South Carolina",".Tennessee",".Virginia")
+SWEEP1 <- c(".New Mexico",".Arizona",".Colorado",".Utah",".Nevada",".Wyoming")
+NEEA1 <- c(".Montana",".Idaho",".Oregon",".Washington")
+SPEER1 <- c(".Texas",".Oklahoma")
+colnames(pop2022_raw)[1]<- "State"
+Region = ifelse(pop2022_raw$State %in% NEEP1,"NEEP","")
+popRegion = cbind(Region,pop2022_raw)
+popRegion$Region = ifelse(popRegion$State %in% SEEA1,"SEEA",popRegion$Region)
+popRegion$Region = ifelse(popRegion$State %in% MEEA1,"MEEA",popRegion$Region)
+popRegion$Region = ifelse(popRegion$State %in% SPEER1,"SPEER",popRegion$Region)
+popRegion$Region = ifelse(popRegion$State %in% SWEEP1,"SWEEP",popRegion$Region)
+popRegion$Region = ifelse(popRegion$State %in% NEEA1,"NEEA",popRegion$Region)
+popRegion$Region = ifelse(popRegion$State == ".Alaska","Alaska",popRegion$Region)
+popRegion$Region = ifelse(popRegion$State == ".California","California",popRegion$Region)
+popRegion$Region = ifelse(popRegion$State == ".Hawaii","Hawaii",popRegion$Region)
+popRegion$Region = ifelse(popRegion$State == "","International",popRegion$Region)
+popRegion$X.3 <- as.numeric(gsub(",","",popRegion$X.3))
+popRegion <- popRegion %>% select(Region, X.3)%>%
+  group_by(Region)%>%
+  dplyr::summarise(Population = sum(X.3)) %>% 
+  as.data.frame()
+
+RegMap <- left_join(RegMap, popRegion, by="Region")
+RegMap$perCapita = RegMap$Funding/RegMap$Population
+RegMap$perCapita <- formattable::currency(RegMap$perCapita, digits=0L)
+
+RegMap <- left_join(RegMap,funData_nat_grants, by="Region")
+RegMap$perCapitaGrants = RegMap$GrantFunding/RegMap$Population
+RegMap$perCapitaGrants <- formattable::currency(RegMap$perCapitaGrants, digits=0L)
+# Grants <- RegMap
+Total <-RegMap
+RegMap$GrantFunding <- formattable::currency(RegMap$GrantFunding, digits=0L)
+
+# Regiontable<- RegMap%>% select(Region, Funding)
+# Regiontable%>% kbl(row.names=FALSE) %>%
+#   kable_styling(bootstrap_options = c("striped", "hover", "condensed", "responsive"), full_width = F, html_font="Open Sans", font_size = 14)%>%  
+#   # add_header_above(c("Funding by Region"=2))%>%
+#   row_spec(1:9, color  = "black")
+#   # column_spec(1, "12cm")%>%
+#   # column_spec(2, "3cm")
+# # Regiontable
+# save_kable(Regiontable,"C:/Users/GraceParker/Downloads/2023_FederalFundingTracker/Regiontable.png")
+# sf::sf_use_s2(FALSE)
+# tmap_mode(mode ="view")
+# tm_basemap("CartoDB.PositronNoLabels")+
+# tm_shape(RegMap) +
+#   tm_polygons("Funding",
+#           palette= c("#75C7D3", "#00869F", "#006A7E", "#00315E"),
+#           breaks=c(0, 5000000000,10000000000, 20000000000, Inf),
+#           textNA= "$0",
+#           labels = c("$0-5 billion", "$5-10 billion", "$10-20 billion", "$20 billion+"),
+#       popup.vars= c("Funding: "="Funding"),
+#       popup.format= list(prefix="$", big.num.abbr=NA),
+#       id= "Region",
+#       title= "Total Funding",
+#       border.col="white")+
+# tm_shape(GrantsMapNat) +
+#   tm_polygons("GrantFunding",
+#           palette= c("#75C7D3", "#00869F", "#006A7E", "#00315E"),
+#           breaks=c(0, 500000000,1000000000, 5000000000, Inf),
+#           textNA= "$0",
+#           labels = c("$0-500 million", "$.5-1 billion", "$1-5 billion", "$5 billion+"),
+#       popup.vars= c("Grant Funding: "="GrantFunding"),
+#       popup.format= list(prefix="$", big.num.abbr=NA),
+#       id= "Region",
+#       title= "Grant Funding",
+#       border.col="white")+
+#   tm_borders(col="white", lwd=.25)+
+# # tmap_options(check.and.fix = TRUE, output.size=50)+
+# tm_layout(main.title = "Bipartisan Infrastructure Law Funding",
+#       main.title.fontfamily = "Open Sans",
+#       main.title.fontface = "bold", 
+#       main.title.size= 1,
+#       asp= 1.5,
+#       legend.text.fontfamily = "Open Sans", 
+#       legend.title.fontfamily = "Open Sans", 
+#       legend.title.size= 1)+
+#   tm_view(set.view=c(-90,40,4))
+
+# tmap_mode(mode ="plot")
+# bbox_SE <- st_bbox(RegMap)
+# 
+# # tm_basemap("CartoDB.PositronNoLabels")
+# 
+# mbtiles <- get_static_tiles(
+#   location = c(-130, 20, -60, 55),
+#   zoom = 3,
+#   style_url= "mapbox://styles/gparker-seea/clkr4hgj800zo01qk7npq3p0x",
+#   username="gparker-seea",
+#   access_token= "pk.eyJ1IjoiZ3Bhcmtlci1zZWVhIiwiYSI6ImNsa3I0ZHFtajJnc2QzcWtlajlmbWV3d2IifQ.jk6o3SXtTTAneVg11e_pww"
+# )
+# 
+# # tm_shape(territories, is.master=F)+
+# #   tm_fill(col="grey70")+
+# tm_shape(mbtiles)+
+#   tm_rgb() +
+# tm_shape(RegMap) +
+#   tm_polygons("GrantFunding",
+#           palette= c("#B8E9F0","#75C7D3", "#00869F", "#00447C"),
+#           breaks=c(0, 500000000,1000000000, 5000000000, Inf),
+#           textNA= "$0",
+#           labels = c(
+#       "$0-500 million", "$.5-1 billion", "$1-5 billion", "$5 billion+"),
+#       popup.vars= c("Funding: "="GrantFunding"),
+#       popup.format= list(prefix="$", big.num.abbr=NA),
+#       id= "Region",
+#       alpha=.85,
+#       title= "Funding",
+#       border.col="white")+
+#   tm_borders(col="white", lwd=.25)+
+# tm_shape(Total)+
+#   tm_borders(col="white", lwd=1)+
+# tmap_options(check.and.fix = TRUE)+
+# tm_layout(main.title = "Grants and Cooperative Agreements",
+#       main.title.fontfamily = "Calibri",
+#       main.title.fontface = "bold",
+#       main.title.size= 1,
+#       # asp= 1.5,
+#       legend.position= c("right","bottom"),
+#       legend.text.fontfamily = "Calibri",
+#       legend.title.fontfamily = "Calibri",
+#       legend.title.size= 1)
+# 
+# tmap_save(filename="C:/Users/GraceParker/Downloads/2023_FederalFundingTracker/Grants_Nat.png", height=4, width =6, dpi=1200)
+```
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE, echo=FALSE, results='hide'}
 
 #select population values
 colnames(pop2022_raw)[1] <- "State"
@@ -119,6 +302,11 @@ avgPerCapUS <- formattable::currency(totalUS/totPopUS, digits=0L)
 targetE <- c("AL","AR","FL","GA","KY", "LA", "MS", "NC", "SC", "TN", "VA", "GU", "PR", "MP", "AS", "VI")
 targetO <- c("GU", "PR", "MP", "AS", "VI")
 funData <- dplyr::filter(funData, recipient_state %in% targetE)
+gTarg <- c("COOPERATIVE AGREEMENT (B)","PROJECT GRANT (B)")
+GrantsCA_df <- dplyr::filter(funData, award_type %in% gTarg)%>%
+  group_by(recipient_state)%>%
+  dplyr::summarise(Funding = sum(transaction_obligated_amount)) %>% 
+  as.data.frame()
 DataTerr <- dplyr::filter(funData, recipient_state %in% targetO)
 
 #filter pop by state
@@ -143,24 +331,20 @@ stateData$Percent <- stateData$Funding/sum(stateData$Funding)*100
 stateData$Percent <- format(round(stateData$Percent, 2), nsmall=2)
 stateData$Percent <- as.numeric(stateData$Percent)
 stateData$Funding <- signif(stateData$Funding, 5)
-stateData$Funding <- formattable::currency(stateData$Funding, digits = 0L)
+# stateData$Funding <- formattable::currency(stateData$Funding, digits = 0L)
 stateData$perCapita <- formattable::currency(stateData$perCapita, digits = 0L)
 pop2022$X.3 <- as.numeric(gsub(",","",pop2022$X.3))
 totPop <- sum(pop2022$X.3)
+
+colnames(BIL)[1] <- "State"
+BIL <- left_join(BIL, pop2022, by = "State") 
+BIL$perCapita <- BIL$StateFunding/BIL$X.3
+BIL$perCapita <- format(round(BIL$perCapita, 2), nsmall=2)
+BIL$perCapita <- formattable::currency(BIL$perCapita, digits = 0L)
+BIL$StateFunding <- signif(as.numeric(BIL$StateFunding), 5)
 ```
 ## Bipartisan Infrastructure Law Funding in the Southeast
-<br>
-Since 2021 there have been significant increases in federal funding dedicated to climate, energy, and environmental initiatives. Landmark legislation like the Bipartisan Infrastructure Law (BIL) and Inflation Reduction Act (IRA) mark the largest investments in climate mitigation in American history. While the resources available through these laws provide unprecedented opportunities for communities across the United States, the Southeast Energy Efficiency Alliance (SEEA) wants to ensure that this funding is accessible to all communities in our region, particularly those who have been underserved by federal resources in the past. 
-<br>
-<br>
-This dashboard reveals trends in federal funding awards across the Southeast to understand where funding is going, what it is being used for, and ultimately how accessible it has been for communities without a history of substantial federal investments. Using this information, we aim to support decision-makers across the region in applying for funding and supporting under-resourced communities. This dashboard focuses on funding available through the BIL, and we plan to address additional sources of funding, including the Inflation Reduction Act (IRA) in future versions of this whitepaper as more funding is allocated.
-<br>
-<br>
-The Infrastructure Investment and Jobs Act, also known as the Bipartisan Infrastructure Law (BIL), was passed in November 2021 and allocates $1.2 trillion over ten years in funding for infrastructure projects including roads, public transit, broadband, and electric grid upgrades. As federal agencies continue to allocate BIL funding, this map shows how much funding recipients in the Southeast have received as of July 13, 2023. Funding is tied to the recipient's location, which is often distinct from the place of performance, meaning that the funding does not necessarily fund work in that state However, the recipient location is the best available indicator of where this funding is invested.
-<br>
-<br>
-Almost half of the new funding, or about $274 billion, will be allocated by the Department of Transportation (USDOT). Other agencies, including the Environmental Protection Agency (EPA), the Department of Energy (DOE), the Department of Commerce (DOC), and the Department of Interior (DOI) will each award smaller amounts of funding, between $28 and $67 billion each (Badlam et al., 2021). Federal agencies will use the funding for operations or award most of the funding through direct payments, competitive grants, cooperative agreements, or will allocate it based on formulas that provide pre-determined amounts for each state/territory.
-<br>
+
 ```{r, echo=FALSE, message=FALSE, warning=FALSE, echo=FALSE, results='hide', fig.show='hide'}
 BIL$StateFunding <- formattable::currency(BIL$StateFunding)
 #tmap
@@ -211,22 +395,62 @@ BIL$StateFunding <- formattable::currency(BIL$StateFunding)
 # tmap_save(filename="C:/Users/GraceParker/Downloads/2023_FederalFundingTracker/funding.png", height=4, width =6, dpi=1200)
 ```
 
-```{r, echo=FALSE, message=FALSE, warning=FALSE, echo=FALSE}
+<div class = "row">
+<div class = "col-md-8" style="padding-right:25px;">
+
+```{r,  message=FALSE, warning=FALSE, echo=FALSE, out.width="100%"}
+Regional <- RegMap
+Regional_Grants <- RegMap
+colnames(GrantsCA_df)[1] <-"STATE"
+Grantsmap <- left_join(SETerr, GrantsCA_df, by="STATE")
 #tmap
 tmap_mode(mode ="view")
-tm_basemap("CartoDB.PositronNoLabels")+
+BILmap <- tm_basemap("CartoDB.PositronNoLabels")+
 tm_shape(BIL) +
   tm_polygons("StateFunding",
           palette= c("#75C7D3", "#00869F", "#006A7E", "#00315E"),
           breaks=c(0, 1500000000, 2000000000, 3000000000, Inf),
           textNA= "$0",
           labels = c("$0-1.5 billion", "$1.5-2 billion", "$2-3 billion", "$3 billion+"),
-      popup.vars= c("Funding: "="StateFunding"),
+      popup.vars= c("Funding: "="StateFunding","Per Capita:"="perCapita"),
       popup.format= list(prefix="$", big.num.abbr=NA),
       id= "NAME",
-      title= "BIL State Funding",
+      title= "Southeast Total",
       border.col="white")+
-  tm_borders(col="white", lwd=.25)+
+  tm_shape(Grantsmap) +
+  tm_polygons("Funding",
+          palette= c("#75C7D3", "#00869F", "#006A7E", "#00315E"),
+          breaks=c(0, 100000000, 150000000, 200000000, Inf),
+          textNA= "$0",
+          labels = c("$0-50 million", "$50-100 million", "$100-200 million", "$200 million+"),
+      popup.vars= c("Funding: "="Funding"),
+      popup.format= list(prefix="$", big.num.abbr=NA),
+      id= "NAME",
+      title= "Southeast Grants",
+      border.col="white")+
+  # tm_shape(Regional) +
+  # tm_polygons("Funding",
+  #         palette= c("#75C7D3", "#00869F", "#006A7E", "#00315E"),
+  #         breaks=c(0, 5000000000,10000000000, 20000000000, Inf),
+  #         textNA= "$0",
+  #         labels = c("$0-5 billion", "$5-10 billion", "$10-20 billion", "$20 billion+"),
+  #     popup.vars= c("Funding: "="Funding"),
+  #     popup.format= list(prefix="$", big.num.abbr=NA),
+  #     id= "NAME",
+  #     title= "Regional Total",
+  #     border.col="white")+
+  # tm_shape(Regional_Grants) +
+  # tm_polygons("Funding",
+  #         palette= c("#75C7D3", "#00869F", "#006A7E", "#00315E"),
+  #         breaks=c(0, 500000000,1000000000, 5000000000, Inf),
+  #         textNA= "$0",
+  #         labels = c("$0-500 million", "$.5-1 billion", "$1-5 billion", "$5 billion+"),
+  #     popup.vars= c("Funding: "="Funding"),
+  #     popup.format= list(prefix="$", big.num.abbr=NA),
+  #     id= "NAME",
+  #     title= "Regional Grants",
+  #     border.col="white")+
+  # tm_borders(col="white", lwd=.25)+
 tmap_options(check.and.fix = TRUE, output.size=50)+
 tm_layout(main.title = "Bipartisan Infrastructure Law Funding in the Southeast",
       main.title.fontfamily = "Open Sans",
@@ -236,57 +460,257 @@ tm_layout(main.title = "Bipartisan Infrastructure Law Funding in the Southeast",
       legend.text.fontfamily = "Open Sans", 
       legend.title.fontfamily = "Open Sans", 
       legend.title.size= 1)+
-  tm_view(set.view=c(-83,35,5))
+  tm_view(set.view=c(-85.2,35,5))
+BILmap
+# BILmap %>% 
+#   tmap_leaflet() %>%
+#   leaflet::hideGroup("Grants")
+
+#tmap COOP AGREEMENTS AND GRANTS
+# colnames(Grants)[1] <- "STATE"
+# Grants <- left_join(SETerr, Grants, by="STATE")
+# Grants$Funding <- formattable::currency(Grants$Funding)
+# # Grants <- left_join(SETerr, Grants, by = "FIPS")
+# tmap_mode(mode ="view")
+# tm_basemap("CartoDB.PositronNoLabels")+
+# tm_shape(Grants) +
+#   tm_polygons("Funding",
+#           palette= c("#75C7D3", "#00869F", "#006A7E", "#00315E"),
+#           breaks=c(0, 100000000, 150000000, 200000000, Inf),
+#           textNA= "$0",
+#           labels = c("$0-50 million", "$50-100 million", "$100-200 million", "$200 million+"),
+#       popup.vars= c("Funding: "="Funding"),
+#       popup.format= list(prefix="$", big.num.abbr=NA),
+#       id= "NAME",
+#       title= "BIL Cooperative Agreement and Grant Funding",
+#       border.col="white")+
+#   tm_borders(col="white", lwd=.25)+
+# tmap_options(check.and.fix = TRUE, output.size=50)+
+# tm_layout(main.title = "BIL Cooperative Agreement and Grant Funding",
+#       main.title.fontfamily = "Open Sans",
+#       main.title.fontface = "bold", 
+#       main.title.size= 1,
+#       asp= 1.5,
+#       legend.text.fontfamily = "Open Sans", 
+#       legend.title.fontfamily = "Open Sans", 
+#       legend.title.size= 1)+
+#   tm_view(set.view=c(-85.2,35,5))
 ```
 
-## Funding Analysis {.tabset}
-### Southeast
+```{r, echo=FALSE, message=FALSE, warning=FALSE, echo=FALSE, results='hide', fig.show='hide'}
+
+#tmap
+tmap_mode(mode ="plot")
+bbox_SE <- st_bbox(SEstates)
+
+# tm_basemap("CartoDB.PositronNoLabels")
+
+# mbtiles <- get_static_tiles(
+#   location = c(-100, 23, -67, 40),
+#   zoom = 4,
+#   style_url= "mapbox://styles/gparker-seea/clkr4hgj800zo01qk7npq3p0x",
+#   username="gparker-seea",
+#   access_token= "pk.eyJ1IjoiZ3Bhcmtlci1zZWVhIiwiYSI6ImNsa3I0ZHFtajJnc2QzcWtlajlmbWV3d2IifQ.jk6o3SXtTTAneVg11e_pww"
+# )
+# 
+# # tm_shape(territories, is.master=F)+
+# #   tm_fill(col="grey70")+
+# tm_shape(mbtiles)+
+#   tm_rgb() +
+# tm_shape(Grantsmap) +
+#   tm_polygons("Funding",
+#           palette= c("#B8E9F0","#75C7D3", "#00869F", "#00447C"),
+#           breaks=c(0, 100000000, 150000000, 200000000, Inf),
+#           textNA= "$0",
+#           labels = c(
+#       "$0-50 million", "$50-100 million", "$100-200 million", "$200 million+"),
+#       popup.vars= c("Funding: "="Funding"),
+#       popup.format= list(prefix="$", big.num.abbr=NA),
+#       id= "STATE",
+#       alpha=.85,
+#       title= "Funding",
+#       border.col="white")+
+#   tm_borders(col="white", lwd=.25)+
+# tm_shape(SEstates)+
+#   tm_borders(col="white", lwd=1)+
+# tmap_options(check.and.fix = TRUE)+
+# tm_layout(main.title = "Grants and Cooperative Agreements",
+#       main.title.fontfamily = "Calibri",
+#       main.title.fontface = "bold",
+#       main.title.size= 1,
+#       # asp= 1.5,
+#       legend.position= c("right","bottom"),
+#       legend.text.fontfamily = "Calibri",
+#       legend.title.fontfamily = "Calibri",
+#       legend.title.size= 1)
+# 
+# tmap_save(filename="C:/Users/GraceParker/Downloads/2023_FederalFundingTracker/Grants_SE.png", height=4, width =6, dpi=1200)
+
+RegMap$Region[5] <- "Midwest"
+RegMap$Region[6] <- "Northwest"
+RegMap$Region[7] <- "Northeast"
+RegMap$Region[8] <- "Southeast"
+RegMap$Region[9] <- "South Central"
+RegMap$Region[10] <- "Southwest"
+RegMap <- RegMap[!is.na(RegMap$Population),]
+RegMap <- RegMap[order(RegMap$Funding,decreasing=TRUE),]%>%as.data.frame()%>%
+  select(Region, Funding, perCapita, GrantFunding, perCapitaGrants)
+colnames(RegMap)[3] <-"Total Per Capita"
+colnames(RegMap)[4] <- "Grant Funding"
+colnames(RegMap)[5] <- "Grants Per Capita"
+RegionTable<- RegMap%>% kbl(row.names=FALSE) %>%
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed", "responsive"), full_width = F, html_font="Calibri", font_size = 14, position="center", row_label_position = r)%>%
+  add_header_above(c("Funding by Region"=5))%>%
+  row_spec(1:9, color  = "black")%>%
+  column_spec(1:5, "3cm")
+RegionTable
+
+# save_kable(RegionTable,"C:/Users/GraceParker/Downloads/2023_FederalFundingTracker/Regiontable.png")
+```
+</div>
+
+<div class = "col-md-4">
+<br>
+The Infrastructure Investment and Jobs Act, also known as the Bipartisan Infrastructure Law (BIL), was passed in November 2021 and allocates $1.2 trillion over ten years in funding for infrastructure projects including roads, public transit, broadband, and electric grid upgrades. As federal agencies continue to allocate BIL funding, this map shows how much funding recipients in the Southeast have received as of July 13, 2023. This dashboard focuses on funding available through the BIL, and we plan to address additional sources of funding, including the Inflation Reduction Act (IRA) in future versions of this whitepaper as more funding is allocated.
+<br>
+</div>
+
+## {.tabset}
+### Funding By State
+
+<div class = "row">
+<div class = "col-md-7" style="padding-right:25px;">
 ```{r echo=FALSE}
 targetM <- c("AL","AR","FL","GA","KY", "LA", "MS", "NC", "SC", "TN", "VA")
 SEdata<- filter(stateData, State %in% targetM)
 SEdata$State <- c("Alabama","Arkansas","Florida","Georgia","Kentucky", "Louisiana", "Mississippi", "North Carolina", "South Carolina", "Tennessee", "Virginia")
 SEdata <- SEdata[order(SEdata$Funding,decreasing=TRUE),]
-SEdata$zone.start <- with(SEdata, c(0, cumsum(Percent)[-length(Percent)]))  
-SEdata$zone.end <- with(SEdata, cumsum(Percent))  
-SEdata$label.point <- with(SEdata, ((zone.start + zone.end) / 2)) 
-
+SEdata$zone.start <- with(SEdata, c(0, cumsum(Percent)[-length(Percent)]))
+SEdata$zone.end <- with(SEdata, cumsum(Percent))
+SEdata$label.point <- with(SEdata, ((zone.start + zone.end) / 2))
+# 
 pie <- ggplot(SEdata, aes(x="", y=Percent, fill=reorder(State, Percent, decreasing=F)))+
   geom_bar(width = 1, stat = "identity")+
   coord_polar("y", start=0)+
-  scale_fill_manual(values=c("#BFBFBF", "#6171AF", "#00869F", "#75C7D3", "#AAC5E2", "#8FED94", "#FFF745","#FCB616", "#D4442D", "#C70039", "#900C3F"), name= "States") +
+  scale_fill_manual(values=c("#BFBFBF", "#6171AF", "#00869F", "#75C7D3", "#AAC5E2", "#8FED94", "#FFF745","#FCB616", "#D4442D", "#C70039", "#900C3F"), name= "States")+
   geom_text_repel(data = SEdata,
                    aes(y = label.point, label = ifelse(Percent>10,paste0(Percent, "%"),""), family="Open Sans"),
-                   size = 4.5, nudge_x = 1, show.legend = FALSE) +
+  size = 4.5, nudge_x = 1, show.legend = FALSE) +
   ggtitle("Southeast BIL Funding by State")+
   theme_void(base_family="Open Sans")+
-  guides(fill=guide_legend(reverse=T))
+  guides(fill=guide_legend(reverse=T))+ 
+  theme(legend.text=element_text(size=12))
 pie
-ggsave("C:/Users/GraceParker/Downloads/2023_FederalFundingTracker/States.png", width = 6,   height = 4, dpi=1200)
-
+# 
 total <- formattable::currency(sum(stateData$Funding), digits=0L)
 SEpercent <- as.numeric(total)/as.numeric(totalUS)*100
 SEpercent <- format(round(SEpercent, 2), nsmall=2)
 avgPerCap <- formattable::currency(total/totPop, digits=0L)
 SEpercPop <- as.numeric(totPop)/as.numeric(totPopUS)*100
 SEpercPop <- format(round(SEpercPop, 2), nsmall=2)
+# 
+# 
+
+#EXPERIMENT
+# library(highcharter) 
+# library(magrittr)
+# 
+# # set options
+# hcoptslang <- getOption("highcharter.lang")
+# hcoptslang$thousandsSep <- ","
+# options(highcharter.lang = hcoptslang)
+# 
+# colors <- c("#BFBFBF", "#6171AF", "#00869F", "#75C7D3", "#AAC5E2", "#8FED94", "#FFF745","#FCB616", "#D4442D", "#C70039", "#900C3F")
+# mytheme <- hc_theme(style = list(fontFamily = "Opens Sans"))
+# 
+# hc1 <- SEdata %>%
+#   hchart(
+#     "pie", hcaes(x = State, y = Funding),
+#     name = "Funding ($)",
+#     tooltip= list(formattable::currency(SEdata$Funding,digits=0L)))%>%
+#     hc_colors(colors)%>%
+#     hc_plotOptions(pie=list(
+#       dataLabels = list(enabled = FALSE)
+#       ))%>%
+#     hc_title(
+#     text = "Southeast Funding by State",
+#     margin = 20,
+#     align = "left", 
+#     style=list(fontFamily="Opens Sans"))
+#     # hc_size(height=400,width=400)
+# hc1
+```
 
 
-# SEdata <- SEdata[order(SEdata$Funding,decreasing=TRUE),]
+``` {r echo=FALSE, fig.align='center'}
+
+
+# colors <- c("#FFA07A","#F08080", "#900C3F", "#C70039", "#D4442D", "#FCB616","#FFF7B3","#8FED94", "#52BE80", "#AAC5E2", "#75C7D3", "#00869F", "#6171AF","#DCB6D0","#C799C8", "#D2D2D2", "#7B7B7B","#585757")
+# funcSE$Funding <- signif(as.numeric(funcSE$Funding), 5)
+# hc2 <- funcSE %>%
+#   hchart(
+#     "pie", hcaes(x = budget_subfunction, y = Funding),
+#     name = "Funding ($)",
+#     tooltip= list(formattable::currency(funcSE$Funding,digits=0L)))%>%
+#     hc_colors(colors)%>%
+#     hc_plotOptions(pie=list(
+#       dataLabels = list(enabled = FALSE)
+#       ))%>%
+#     hc_title(
+#     text = "Southeast Funding by Category",
+#     margin = 20,
+#     align = "left"
+#   )
+#     # hc_size(height=400,width=400)
+
+
+
+# colors <- c("#900C3F", "#C70039", "#D4442D", "#FCB616", "#52BE80", "#AAC5E2", "#75C7D3", "#00869F", "#6171AF","#DCB6D0","#C799C8", "#D2D2D2", "#7B7B7B","#585757")
+# fundByType$Funding <- signif(as.numeric(fundByType$Funding), 5)
+# hc3 <- fundByType %>%
+#   hchart(
+#     "pie", hcaes(x = Type, y = Funding),
+#     name = "Funding ($)",
+#     tooltip= list(formattable::currency(fundByType$Funding,digits=0L)))%>%
+#     hc_colors(colors)%>%
+#     hc_plotOptions(pie=list(
+#       dataLabels = list(enabled = FALSE)
+#       ))%>%
+#     hc_title(
+#     text = "Southeast Funding by Type",
+#     margin = 20,
+#     align = "left"
+#   )
+#     # hc_size(height=400,width=400)
+
+# hw_grid(hc1,hc2,hc3)
+dirSpecUse <- dplyr::filter(funData, grepl("DIRECT PAYMENT FOR SPECIFIED USE", award_type))
+FCC <- dplyr::filter(dirSpecUse, awarding_agency_name == "FEDERAL COMMUNICATIONS COMMISSION (FCC)")
+totaldirSpec <- sum(dirSpecUse$transaction_obligated_amount)
+totalFCC <-  sum(FCC$transaction_obligated_amount)
+percentFCC <- totalFCC/totaldirSpec *100
+```
+</div>
+
+<div class = "col-md-5">
+``` {r echo=FALSE}
+SEdata <- SEdata[order(SEdata$Funding,decreasing=TRUE),]
+SEdata$Funding<- formattable::currency(SEdata$Funding, digits=0L)
+
 statesTable<- SEdata%>% select(State, Funding, perCapita) %>% kbl(row.names=FALSE) %>%
   kable_styling(bootstrap_options = c("striped", "hover", "condensed", "responsive"), full_width = F, html_font="Open Sans", font_size = 14, position="center", row_label_position = r)%>%
   add_header_above(c("Southeast Funding by State"=3))%>%
   row_spec(1:11, color  = "black")%>%
   column_spec(1:3, "5cm")
 statesTable
-
+# #
 save_kable(statesTable,"C:/Users/GraceParker/Downloads/2023_FederalFundingTracker/Statetable.png")
 ```
-
-
-As of July 13, 2023, the federal government had committed $23.74 billion in Infrastructure Investment and Jobs Act funding to the Southeast, or about `r avgPerCap` per person. This is about `r SEpercent`% of total BIL funding committed nationally, while about `r SEpercPop`% of the U.S. population lived in the Southeast in 2022. The Southeast per capita funding is less than the national average of `r avgPerCapUS`. Florida and Georgia have received the most funding at about $4.2 billion and $3.5 billion respectively. Florida, Georgia, North Carolina, and Virginia, the most populous states in the Southeast, have received the most funding but generally lower amounts of funding per person. South Carolina has received the second lowest amount of total funding and funding per person in the Southeast, indicating that more support is needed to successfully apply for funding.
-<br>
-
-``` {r echo=FALSE, fig.align='center'}
+</div>
+### Funding By Category
+<div class = "row">
+<div class = "col-md-7" style="padding-right:25px;">
+``` {r echo=FALSE}
 funcSE <- funData %>% dplyr::filter(recipient_state %in% targetM)%>% 
   group_by(budget_subfunction) %>% dplyr::summarise(
   Funding = sum(transaction_obligated_amount)
@@ -296,9 +720,9 @@ funcSE$Percent <- 100*(funcSE$Funding/sum(funcSE$Funding))
 funcSE$Percent <- format(round(funcSE$Percent, 2), nsmall=2)
 funcSE$Percent <- as.numeric(funcSE$Percent)
 
-funcSE$zone.start <- with(funcSE, c(0, cumsum(Percent)[-length(Percent)]))  
-funcSE$zone.end <- with(funcSE, cumsum(Percent))  
-funcSE$label.point <- with(funcSE, (100-(zone.start + zone.end) / 2)) 
+funcSE$zone.start <- with(funcSE, c(0, cumsum(Percent)[-length(Percent)]))
+funcSE$zone.end <- with(funcSE, cumsum(Percent))
+funcSE$label.point <- with(funcSE, (100-(zone.start + zone.end) / 2))
 
 colnames(funcSE)[1] <- "Category"
 
@@ -310,51 +734,18 @@ pie <- ggplot(funcSE, aes(x="", y=Percent, fill=Category))+
                    aes(y = label.point, label = ifelse(Percent>5 | Category == 'Energy conservation' ,paste0(Percent, "%"),""), family="Open Sans"),
                    size = 4.5, nudge_x = 1, show.legend = FALSE) +
   ggtitle("Southeast Funding by Category")+
+  theme(plot.title = element_text(size=12))+
   theme_void(base_family= "Open Sans")+
   theme(legend.key.height = unit(.5,'cm'),
         legend.key.width = unit(.5, 'cm'))
 pie
 
 ggsave("C:/Users/GraceParker/Downloads/2023_FederalFundingTracker/Categories.png", width = 6,   height = 4.25, dpi=1100)
-
-# fundByType <-group_by(funData,award_type) %>% dplyr::summarise(
-#   Funding = sum(transaction_obligated_amount)
-#   )%>% as.data.frame()
-# 
-# fundByType$Percent <- 100*(fundByType$Funding/sum(fundByType$Funding))
-# fundByType$Percent <- format(round(fundByType$Percent, 2), nsmall=2)
-# fundByType$Percent <- as.numeric(fundByType$Percent)
-# 
-# fundByType$zone.start <- with(fundByType, c(0, cumsum(Percent)[-length(Percent)]))  
-# fundByType$zone.end <- with(fundByType, cumsum(Percent))  
-# fundByType$label.point <- with(fundByType, (100-(zone.start + zone.end) / 2)) 
-# 
-# fundByType$award_type[7] <- "Direct Payment Specified Use"
-# fundByType$award_type[11] <- "Other Financial Assistance"
-# colnames(fundByType)[1] <- "Type"
-# fundByType$Type <- str_to_title(fundByType$Type)
-# fundByType$Type[2] <- "BPA Call"
-# 
-# pie2 <- ggplot(fundByType, aes(x="", y=Percent, fill=Type))+
-#   geom_bar(width = 1, stat = "identity")+
-#   coord_polar("y", start=0)+
-#   scale_fill_manual(values=c("#900C3F", "#C70039", "#D4442D", "#FCB616", "#52BE80", "#AAC5E2", "#75C7D3", "#00869F", "#6171AF","#DCB6D0","#C799C8", "#D2D2D2", "#7B7B7B","#585757")) +
-#   geom_text_repel(data = fundByType,
-#                    aes(y = label.point, label = ifelse(Percent>5,paste0(Percent, "%"),""),family="Open Sans"),
-#                    size = 4.5, nudge_x = 1, show.legend = FALSE, max.overlaps =20) +
-#   ggtitle("Southeast Funding by Award Type")+
-#   theme_void(base_family= "Open Sans")
-# pie2
-# 
-# ggsave("C:/Users/GraceParker/Downloads/2023_FederalFundingTracker/award_type.png", width = 6,   height = 4, dpi=1100)
-
-dirSpecUse <- dplyr::filter(funData, grepl("DIRECT PAYMENT FOR SPECIFIED USE", award_type))
-FCC <- dplyr::filter(dirSpecUse, awarding_agency_name == "FEDERAL COMMUNICATIONS COMMISSION (FCC)")
-totaldirSpec <- sum(dirSpecUse$transaction_obligated_amount)
-totalFCC <-  sum(FCC$transaction_obligated_amount)
-percentFCC <- totalFCC/totaldirSpec *100
 ```
-``` {r echo=FALSE}
+</div>
+
+<div class = "col-md-5">
+``` {r echo=FALSE, out.width="80%"}
 funcSE$Funding <- signif(funcSE$Funding, 5)
 funcSE$Funding <- formattable::currency(funcSE$Funding, digits = 0L)
 funcSE%>% select(Category, Funding)%>% kbl() %>%
@@ -364,12 +755,67 @@ funcSE%>% select(Category, Funding)%>% kbl() %>%
   column_spec(1, "10cm")%>%
   column_spec(2,"3cm")
 ```
+</div>
 
-### Energy Funding 
-
-BIL funding represents one of the most significant investments in energy efficiency in history. About $360.2 million has been committed to energy conservation in the Southeast, with an additional $51.2 million in energy production and $4.6 million in energy regulation. Most committed energy funding is to support DOE’s Weatherization Assistance Program (WAP), with $227.7 million, and State Energy Program, with $62.0 million. WAP funds home improvements such as insulation, caulking, and replacement of inefficient heating and cooling systems for eligible income-qualified households, with the goal of improving health, affordability, and safety for people who cannot afford upfront capital needed for weatherization. State Energy Program funding can be used for a variety of applications, including energy efficiency, renewable energy, alternative fuels and electric vehicles, and more. 
-
+### Funding by Award Type
+<div class = "row">
+<div class = "col-md-7" style="padding-right:25px;">
 ``` {r echo=FALSE}
+fundByType <-group_by(funData,award_type) %>% dplyr::summarise(
+  Funding = sum(transaction_obligated_amount)
+  )%>% as.data.frame()
+
+fundByType$Percent <- 100*(fundByType$Funding/sum(fundByType$Funding))
+fundByType$Percent <- format(round(fundByType$Percent, 2), nsmall=2)
+fundByType$Percent <- as.numeric(fundByType$Percent)
+
+fundByType$zone.start <- with(fundByType, c(0, cumsum(Percent)[-length(Percent)]))
+fundByType$zone.end <- with(fundByType, cumsum(Percent))
+fundByType$label.point <- with(fundByType, (100-(zone.start + zone.end) / 2))
+
+fundByType$award_type[7] <- "Direct Payment Specified Use"
+fundByType$award_type[11] <- "Other Financial Assistance"
+colnames(fundByType)[1] <- "Type"
+fundByType$Type <- str_to_title(fundByType$Type)
+fundByType$Type[2] <- "BPA Call"
+fundByType$Type[1] <- "Block Grant"
+fundByType$Type[3] <- "Cooperative Agreement"
+fundByType$Type[6] <- "Direct Loan"
+fundByType$Type[8] <- "Formula Grant"
+fundByType$Type[12] <- "Project Grant"
+
+pie2 <- ggplot(fundByType, aes(x="", y=Percent, fill=Type))+
+  geom_bar(width = 1, stat = "identity")+
+  coord_polar("y", start=0)+
+  scale_fill_manual(values=c("#900C3F", "#C70039", "#D4442D", "#FCB616", "#52BE80", "#AAC5E2", "#75C7D3", "#00869F", "#6171AF","#DCB6D0","#C799C8", "#D2D2D2", "#7B7B7B","#585757")) +
+  geom_text_repel(data = fundByType,
+                   aes(y = label.point, label = ifelse(Percent>5,paste0(Percent, "%"),""),family="Open Sans"),
+                   size = 4.5, nudge_x = 1, show.legend = FALSE, max.overlaps =20) +
+  ggtitle("Southeast Funding by Award Type")+
+  theme_void(base_family= "Open Sans")+
+  theme(plot.title = element_text(size=12))
+pie2
+
+ggsave("C:/Users/GraceParker/Downloads/2023_FederalFundingTracker/award_type.png", width = 6,   height = 4, dpi=1100)
+```
+</div>
+
+<div class = "col-md-5">
+``` {r echo=FALSE, out.width="80%"}
+fundByType$Funding <- signif(fundByType$Funding, 5)
+fundByType$Funding <- formattable::currency(fundByType$Funding, digits = 0L)
+fundByType%>% select(Type, Funding)%>% kbl() %>%
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed", "responsive"), full_width=F, font_size=14, html_font="Open Sans")%>%
+  add_header_above(c("Southeast Funding by Type"=2))%>%
+  row_spec(1:13, color  = "black")%>%
+  column_spec(1, "10cm")%>%
+  column_spec(2,"3cm")
+```
+</div>
+### Energy Funding 
+<div class = "row">
+<div class = "col-md-6" style="padding-right:20px;">
+``` {r echo=FALSE, out.width="80%"}
 ###Weatherization Assistance Program Funding
 WAPdata <- read.csv("C:/Users/GraceParker/Downloads/2023_FederalFundingTracker/Southeast_DOE_funding_BIL/Southeast_DOE_BIL_PrimeAwards.csv")%>%select(obligated_amount_from_IIJA_supplemental, program_activities_funding_this_award, recipient_name, cfda_numbers_and_titles, recipient_state_name)%>%filter(cfda_numbers_and_titles == "81.042: WEATHERIZATION ASSISTANCE FOR LOW-INCOME PERSONS")
 
@@ -388,13 +834,17 @@ WAPdata$Recipient[10] <- "Virginia Department of Housing and Community Developme
 WAPtable<- WAPdata%>% select(Recipient, Funding)%>% kbl(row.names=FALSE) %>%
   kable_styling(bootstrap_options = c("striped", "hover", "condensed", "responsive"), full_width = F, html_font="Open Sans", font_size = 14)%>%  
   add_header_above(c("Weatherization Assistance Program Funding"=2))%>%
-  row_spec(1:11, color  = "black")%>%
-  column_spec(1, "12cm")%>%
-  column_spec(2, "3cm")
+  row_spec(1:11, color  = "black")
+  # column_spec(1, "12cm")%>%
+  # column_spec(2, "3cm")
 WAPtable
 save_kable(WAPtable,"C:/Users/GraceParker/Downloads/2023_FederalFundingTracker/WAPtable.png")
 WAPtotal <- sum(WAPdata$Funding)
+```
+</div>
 
+<div class = "col-md-6">
+```{r echo=FALSE, message=FALSE, warning=FALSE, out.width="80%"}
 ###State Energy Office Funding
 SEOdata <- read.csv("C:/Users/GraceParker/Downloads/2023_FederalFundingTracker/Southeast_DOE_funding_BIL/Southeast_DOE_BIL_PrimeAwards.csv")%>%select(obligated_amount_from_IIJA_supplemental, program_activities_funding_this_award, recipient_name, cfda_numbers_and_titles, recipient_state_name)%>%filter(cfda_numbers_and_titles == "81.041: STATE ENERGY PROGRAM")
 
@@ -411,15 +861,15 @@ SEOdata$Recipient[9] <- "Louisiana Department of Natural Resources"
 SEOtable<-SEOdata%>% select(Recipient, Funding)%>% kbl(row.names=FALSE) %>%
   kable_styling(bootstrap_options = c("striped", "hover", "condensed", "responsive"), html_font="Open Sans", font_size = 14, full_width = F)%>%
   add_header_above(c("State Energy Program Funding"=2))%>%
-  row_spec(1:10, color  = "black")%>%
-  column_spec(1, "12cm")%>%
-  column_spec(2, "3cm")
+  row_spec(1:10, color  = "black")
+  # column_spec(1, "12cm")%>%
+  # column_spec(2, "3cm")
 SEOtable
 save_kable(SEOtable,"C:/Users/GraceParker/Downloads/2023_FederalFundingTracker/SEOtable.png")
 SEOtotal <- sum(SEOdata$Funding)
 
 ```
-
+</div>
 
 ``` {r echo=FALSE, message=FALSE, warning=FALSE}
 # popup<- c("EPA committed $3.9 million to the City of Atlanta for brownfield remediation at five sites. The sites will be redeveloped or repurposed into affordable housing units, an environmental education center, parks, and mixed-use sites.", "DOE awarded $9.1 million to the National Association of State Energy Officials for their work building a national electric vehicle infrastructure network.", "DOI committed $74.3 million to the Kentucky Energy and Environment Cabinet for mine reclamation.", "DOT committed $6.9 million to the Parish of Jefferson, LA, to purchase three diesel-electric buses and construct new administrative and maintenance buildings.", "The Natural Resources Conservation Service committed $62.1 million to the Arkansas Black Mayors' Association for watershed protection and flood prevention in several cities across the state.", "DOC committed about $500,000 to the Seminole Tribe of Florida to establish a digital training program and provide broadband equipment to support schools, libraries, and workforce development.", "The EPA committed $19.4 million to the Mississippi State Department of Health for public water systems, including fixing leaky or old pipes, improving source of water supply, replacing or constructing finished water storage tanks, and more.", "DOE committed $141.7 million to Piedmont Lithium to build a lithium hydroxide facility that will strengthen the domestic EV battery supply chain. The facility is expected to produce 30,000 metric tons of lithium hydroxide per year, doubling the current U.S. production.", "DOE committed $117 million to Anovion to build a facility that can produce 35,000 tons annually of synthetic graphite anode material, which is used for EV and critical energy storage lithium-ion batteries. This grant will also be used to expand capacity at Anovion's plant in New York.", "DOT committed $3.9 million to the City of Clemson for zero emission battery electric buses to replace diesel buses that have exceeded their useful life.", "DOE committed $220 million for the expansion of Syrah's natural graphite active anode material (AAM) facility. This facility will be the first large-scale natural graphite AAM facility in the United States.", "DOE committed $178 million to Solvary to build a  polyvinylidene fluoride (PDVF) facility. The facility is expected to supply over 5 million EV batteries per year at full capacity and create more than 100 highly skilled manufacturing jobs.", "The Federal Transit Authority committed $16.1 million to the Central Florida Regional Transportation Authority to buy battery electric buses and charging equipment.", "The Army Corps of Engineers committed nearly $1.1 billion to reconnect the Northern Everglades and the southern and central habitats, which have been isolated by the impacts of human development. This is the single largest investment in Everglade's history.", "EPA committed $1 million to the Westminster Village of the Mid-South to clean up a retirement community that provides affordable housing. The site is contaminated with inorganic contaminants.", "DOE committed $316 million to Ascend Elements to build a manufacturing and EV batteries recycling facility. The facility will produce enough precursor and battery-ready cathode active materials for 250,000 EVs per year.", "DOE committed $100 million to Applied Materials to build a prelithiation and lithium anode facility to support the EV battery supply chain.", "DOC committed $500,000 to the Eastern Band of Cherokee Indians for the initial phase of a broadband initiative, including rights-of-way, appraisals, project inspection fees, and project management.", "DOT committed $800,000 to the City of Birmingham for data-driven recommendations to mitigate the negative impacts of rail and highway infrastructure on historically Black communities and historic neighborhoods in general.", "DOI committed $25 million to the Louisiana DNR to plug and restore orphaned wells, implement methane monitoring protocols, and improve water quality monitoring.")
@@ -491,6 +941,9 @@ SEOtotal <- sum(SEOdata$Funding)
 ```
 
 ### Alabama
+
+<div class = "row">
+<div class = "col-md-7" style="padding-right:25px;">
 ```{r, echo=FALSE, fig.align='center'}
 #function and award type data, filter to Alabama
 funcAL <-dplyr::filter(funData, recipient_state=="AL")%>%
@@ -502,9 +955,9 @@ funcAL$Percent <- 100*(funcAL$Funding/sum(funcAL$Funding))
 funcAL$Percent <- format(round(funcAL$Percent, 2), nsmall=2)
 funcAL$Percent <- as.numeric(funcAL$Percent)
 
-funcAL$zone.start <- with(funcAL, c(0, cumsum(Percent)[-length(Percent)]))  
-funcAL$zone.end <- with(funcAL, cumsum(Percent))  
-funcAL$label.point <- with(funcAL, (100-(zone.start + zone.end) / 2)) 
+funcAL$zone.start <- with(funcAL, c(0, cumsum(Percent)[-length(Percent)]))
+funcAL$zone.end <- with(funcAL, cumsum(Percent))
+funcAL$label.point <- with(funcAL, (100-(zone.start + zone.end) / 2))
 
 colnames(funcAL)[1] <- "Category"
 
@@ -518,28 +971,52 @@ pie <- ggplot(funcAL, aes(x="", y=Percent, fill=Category))+
   ggtitle("Alabama Funding by Category")+
   theme_void(base_family = "Open Sans")
 pie
+
+# colors <- c("#FFA07A","#900C3F","#C70039", "#D4442D", "#8FED94", "#00869F", "#6171AF","#DCB6D0","#C799C8","#7B7B7B","#585757")
+funcAL$Funding <- signif(funcAL$Funding, 5)
+# hc <- funcAL %>%
+#   hchart(
+#     "pie", hcaes(x = Category, y = Funding),
+#     name = "Funding ($)",
+#     tooltip= list(formattable::currency(funcAL$Funding,digits=0L)))%>%
+#     hc_colors(colors)%>%
+#     hc_plotOptions(pie=list(
+#       dataLabels = list(enabled = FALSE)
+#       ))%>%
+#     hc_size(height=400,width=400)%>%
+#     hc_title(
+#     text = "Alabama Funding by Category",
+#     margin = 20,
+#     align = "left"
+#   )
+# hc
+
+
 ```
+</div>
 
-
-```{r echo=FALSE}
+<div class = "col-md-5">
+```{r, echo=FALSE, fig.align='center'}
 funcAL <- funcAL %>% add_row(Category = "Total", Funding=sum(funcAL$Funding))
 funcAL$Funding <- signif(funcAL$Funding, 5)
 funcAL$Funding <- currency(funcAL$Funding, digits = 0L)
 funcAL%>% select(Category, Funding)%>% kbl() %>%
-  kable_styling(bootstrap_options = c("striped", "hover", "condensed", "responsive"), full_width = F, html_font="Open Sans", font_size = 14)%>%  
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed", "responsive"), full_width = F, html_font="Open Sans", font_size = 14)%>%
   add_header_above(c("Alabama Funding by Category"=2))%>%
   row_spec(1:11, color  = "black")%>%
   column_spec(1, "10cm")%>%
   column_spec(2, "3cm")
 ```
+</div>
 
 #### Spotlight on Projects
 Anovion: The Department of Energy committed $117 million to Anovion to build a facility in Colbert County, Alabama, that can produce 35,000 tons annually of synthetic graphite anode material, which is used for EV and critical energy storage lithium-ion batteries. This grant will also be used in part to expand capacity at Anovion’s plant in New York.
 
 City of Birmingham: The Department of Transportation committed $800,000 to the City of Birmingham, Alabama, to study and produce recommendations about how to reduce the negative impacts of rail and highway infrastructure on historically Black communities and historic neighborhoods in general.
 
-
 ### Arkansas 
+<div class = "row">
+<div class = "col-md-7" style="padding-right:25px;">
 ```{r, echo=FALSE, fig.align='center'}
 funcAR <-dplyr::filter(funData, recipient_state=="AR")%>%
   group_by(budget_subfunction) %>% dplyr::summarise(
@@ -550,9 +1027,9 @@ funcAR$Percent <- 100*(funcAR$Funding/sum(funcAR$Funding))
 funcAR$Percent <- format(round(funcAR$Percent, 2), nsmall=2)
 funcAR$Percent <- as.numeric(funcAR$Percent)
 
-funcAR$zone.start <- with(funcAR, c(0, cumsum(Percent)[-length(Percent)]))  
-funcAR$zone.end <- with(funcAR, cumsum(Percent))  
-funcAR$label.point <- with(funcAR, (100-(zone.start + zone.end) / 2)) 
+funcAR$zone.start <- with(funcAR, c(0, cumsum(Percent)[-length(Percent)]))
+funcAR$zone.end <- with(funcAR, cumsum(Percent))
+funcAR$label.point <- with(funcAR, (100-(zone.start + zone.end) / 2))
 
 colnames(funcAR)[1] <- "Category"
 
@@ -566,28 +1043,49 @@ pie <- ggplot(funcAR, aes(x="", y=Percent, fill=Category))+
   ggtitle("Arkansas Funding by Category")+
   theme_void(base_family="Open Sans")
 pie
+
+# colors <- c("#FFA07A", "#900C3F", "#C70039", "#D4442D","#75C7D3", "#00869F","#6171AF","#DCB6D0", "#7B7B7B","#585757")
+funcAR$Funding <- signif(funcAR$Funding, 5)
+# hc <- funcAR %>%
+#   hchart(
+#     "pie", hcaes(x = Category, y = Funding),
+#     name = "Funding ($)",
+#     tooltip= list(formattable::currency(funcAR$Funding,digits=0L)))%>%
+#     hc_colors(colors)%>%
+#     hc_plotOptions(pie=list(
+#       dataLabels = list(enabled = FALSE)
+#       ))%>%
+#     hc_size(height=400,width=400)%>%
+#     hc_title(
+#     text = "Arkansas Funding by Category",
+#     margin = 20,
+#     align = "left"
+#   )
+# hc
 ```
-
-
-``` {r echo=FALSE}
+</div>
+<div class = "col-md-5">
+```{r, echo=FALSE, fig.align='center'}
 funcAR <- funcAR %>% add_row(Category = "Total", Funding=sum(funcAR$Funding))
 funcAR$Funding <- signif(funcAR$Funding, 5)
 funcAR$Funding <- currency(funcAR$Funding, digits = 0L)
 funcAR%>% select(Category, Funding)%>% kbl() %>%
-  kable_styling(bootstrap_options = c("striped", "hover", "condensed", "responsive"), full_width = F, html_font="Open Sans", font_size = 14)%>%  
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed", "responsive"), full_width = F, html_font="Open Sans", font_size = 14)%>%
   add_header_above(c("Arkansas Funding by Category"=2))%>%
   row_spec(1:10, color  = "black")%>%
   column_spec(1, "10cm")%>%
   column_spec(2, "3cm")
 ```
-
+</div>
 #### Spotlight on Projects
 Arkansas Black Mayor’s Association (ABMA): The Natural Resources Conservation Service committed $62.1 million to the ABMA for watershed protection and flood prevention in several cities across the state. 
 
 Westminster Village of the Mid-South: The Environmental Protection Agency committed $1 million to a retirement community in Blytheville, Arkansas, that provides affordable housing on a former air force base, a site contaminated with inorganic substances. The grant will help the nonprofit clean up the site to enhance the safety of its residents.
 
 
-### Florida 
+### Florida
+<div class = "row">
+<div class = "col-md-7" style="padding-right:25px;">
 ```{r, echo=FALSE, fig.align='center'}
 
 #function and award type data, filter to Florida
@@ -600,9 +1098,9 @@ funcFL$Percent <- 100*(funcFL$Funding/sum(funcFL$Funding))
 funcFL$Percent <- format(round(funcFL$Percent, 2), nsmall=2)
 funcFL$Percent <- as.numeric(funcFL$Percent)
 
-funcFL$zone.start <- with(funcFL, c(0, cumsum(Percent)[-length(Percent)]))  
-funcFL$zone.end <- with(funcFL, cumsum(Percent))  
-funcFL$label.point <- with(funcFL, (100-(zone.start + zone.end) / 2)) 
+funcFL$zone.start <- with(funcFL, c(0, cumsum(Percent)[-length(Percent)]))
+funcFL$zone.end <- with(funcFL, cumsum(Percent))
+funcFL$label.point <- with(funcFL, (100-(zone.start + zone.end) / 2))
 
 colnames(funcFL)[1] <- "Category"
 
@@ -616,28 +1114,51 @@ pie <- ggplot(funcFL, aes(x="", y=Percent, fill=Category))+
   ggtitle("Florida Funding by Category")+
   theme_void(base_family="Open Sans")
 pie
-```
 
-```{r echo=FALSE}
+# colors <- c("#FFA07A", "#900C3F","#C70039", "#D4442D","#52BE80", "#75C7D3","#00869F", "#6171AF","#DCB6D0","#C799C8", "#D2D2D2", "#7B7B7B","#585757")
+funcFL$Funding <- signif(funcFL$Funding, 5)
+# hc <- funcFL %>%
+#   hchart(
+#     "pie", hcaes(x = Category, y = Funding),
+#     name = "Funding ($)",
+#     tooltip= list(formattable::currency(funcFL$Funding,digits=0L)))%>%
+#     hc_colors(colors)%>%
+#     hc_plotOptions(pie=list(
+#       dataLabels = list(enabled = FALSE)
+#       ))%>%
+#     hc_size(height=400,width=400)%>%
+#     hc_title(
+#     text = "Florida Funding by Category",
+#     margin = 20,
+#     align = "left"
+#   )
+# hc
+```
+</div>
+<div class = "col-md-5">
+```{r, echo=FALSE, fig.align='center'}
 funcFL <- funcFL %>% add_row(Category = "Total", Funding=sum(funcFL$Funding))
 funcFL$Funding <- signif(funcFL$Funding, 5)
 funcFL$Funding <- currency(funcFL$Funding, digits = 0L)
 funcFL%>% select(Category, Funding)%>% kbl() %>%
-  kable_styling(bootstrap_options = c("striped", "hover", "condensed", "responsive"), full_width = F, html_font="Open Sans", font_size = 14)%>%  
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed", "responsive"), full_width = F, html_font="Open Sans", font_size = 14)%>%
   add_header_above(c("Florida Funding by Category"=2))%>%
   row_spec(1:13, color  = "black")%>%
   column_spec(1, "10cm")%>%
   column_spec(2, "3cm")
 ```
-
+</div>
 #### Spotlight on Projects
 Central Florida Regional Transportation Authority (CFRTA): The Federal Transit Authority committed $16.1 million to CFRTA in Orlando, Florida to buy battery electric buses and charging infrastructure.
 
 Army Corps of Engineers (ACE) South Florida Ecosystem Restoration Program: The ACE committed $1.1 billion to reconnect habitats in the Everglades, which have been isolated by the impacts of human development. According to the Biden Administration, this is the single largest investment in Everglade’s’ history.
 
 Seminole Tribe of Florida: The Department of Commerce committed about $500,000 to the Seminole Tribe of Florida to establish a digital training program and provide broadband equipment to support schools, libraries, and workforce development.
+</div>:
 
 ### Georgia
+<div class = "row">
+<div class = "col-md-7" style="padding-right:25px;">
 ```{r, echo=FALSE, fig.align='center'}
 #function and award type data, filter to Georgia
 funcGA <-dplyr::filter(funData, recipient_state=="GA")%>%
@@ -649,9 +1170,9 @@ funcGA$Percent <- 100*(funcGA$Funding/sum(funcGA$Funding))
 funcGA$Percent <- format(round(funcGA$Percent, 2), nsmall=2)
 funcGA$Percent <- as.numeric(funcGA$Percent)
 
-funcGA$zone.start <- with(funcGA, c(0, cumsum(Percent)[-length(Percent)]))  
-funcGA$zone.end <- with(funcGA, cumsum(Percent))  
-funcGA$label.point <- with(funcGA, (100-(zone.start + zone.end) / 2)) 
+funcGA$zone.start <- with(funcGA, c(0, cumsum(Percent)[-length(Percent)]))
+funcGA$zone.end <- with(funcGA, cumsum(Percent))
+funcGA$label.point <- with(funcGA, (100-(zone.start + zone.end) / 2))
 
 colnames(funcGA)[1] <- "Category"
 
@@ -665,27 +1186,48 @@ pie <- ggplot(funcGA, aes(x="", y=Percent, fill=Category))+
   ggtitle("Georgia Funding by Category")+
   theme_void(base_family="Open Sans")
 pie
+
+# colors <- c("#FFA07A","#F08080", "#900C3F", "#C70039", "#D4442D","#FFF7B3","#52BE80","#75C7D3", "#00869F", "#6171AF","#DCB6D0","#C799C8", "#D2D2D2", "#7B7B7B","#585757")
+funcGA$Funding <- signif(funcGA$Funding, 5)
+# hc <- funcGA %>%
+#   hchart(
+#     "pie", hcaes(x = Category, y = Funding),
+#     name = "Funding ($)",
+#     tooltip= list(formattable::currency(funcGA$Funding,digits=0L)))%>%
+#     hc_colors(colors)%>%
+#     hc_plotOptions(pie=list(
+#       dataLabels = list(enabled = FALSE)
+#       ))%>%
+#     hc_size(height=400,width=400)%>%
+#     hc_title(
+#     text = "Georgia Funding by Category",
+#     margin = 20,
+#     align = "left"
+#   )
+# hc
 ```
-
-
-```{r echo=FALSE}
+</div>
+<div class = "col-md-5">
+```{r, echo=FALSE, fig.align='center'}
 funcGA <- funcGA %>% add_row(Category = "Total", Funding=sum(funcGA$Funding))
 funcGA$Funding <- signif(funcGA$Funding, 5)
 funcGA$Funding <- currency(funcGA$Funding, digits = 0L)
 funcGA%>% select(Category, Funding)%>% kbl() %>%
-  kable_styling(bootstrap_options = c("striped", "hover", "condensed", "responsive"), full_width = F, html_font="Open Sans", font_size = 14)%>%  
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed", "responsive"), full_width = F, html_font="Open Sans", font_size = 14)%>%
   add_header_above(c("Georgia Funding by Category"=2))%>%
   row_spec(1:15, color  = "black")%>%
   column_spec(1, "10cm")%>%
   column_spec(2, "3cm")
 ```
-
+</div>
 #### Spotlight on Projects
 City of Atlanta: The Environmental Protection Agency committed $3.9 million to the City of Atlanta for brownfield remediation at five sites. The sites will be redeveloped or repurposed into affordable housing units, an environmental education center, parks, and mixed-use sites.
 
 Solvay: The Department of Energy committed $178 million to Solvary to build a polyvinylidene fluoride (PVDF) facility in Augusta, Georgia. The facility is expected to supply over 5 million EV batteries per year at full capacity and create more than 100 highly skilled manufacturing jobs.
 
 ### Kentucky
+<div class = "row">
+<div class = "col-md-7" style="padding-right:25px;">
 ```{r, echo=FALSE, fig.align='center'}
 
 #function and award type data, filter to Kentucky
@@ -698,9 +1240,9 @@ funcKY$Percent <- 100*(funcKY$Funding/sum(funcKY$Funding))
 funcKY$Percent <- format(round(funcKY$Percent, 2), nsmall=2)
 funcKY$Percent <- as.numeric(funcKY$Percent)
 
-funcKY$zone.start <- with(funcKY, c(0, cumsum(Percent)[-length(Percent)]))  
-funcKY$zone.end <- with(funcKY, cumsum(Percent))  
-funcKY$label.point <- with(funcKY, (100-(zone.start + zone.end) / 2)) 
+funcKY$zone.start <- with(funcKY, c(0, cumsum(Percent)[-length(Percent)]))
+funcKY$zone.end <- with(funcKY, cumsum(Percent))
+funcKY$label.point <- with(funcKY, (100-(zone.start + zone.end) / 2))
 
 colnames(funcKY)[1] <- "Category"
 
@@ -714,27 +1256,48 @@ pie <- ggplot(funcKY, aes(x="", y=Percent, fill=Category))+
   ggtitle("Kentucky Funding by Category")+
   theme_void(base_family="Open Sans")
 pie
+
+# colors <- c("#FFA07A","#F08080", "#900C3F", "#C70039", "#D4442D","#00869F", "#6171AF","#DCB6D0","#C799C8","#7B7B7B","#585757")
+funcKY$Funding <- signif(funcKY$Funding, 5)
+# hc <- funcKY %>%
+#   hchart(
+#     "pie", hcaes(x = Category, y = Funding),
+#     name = "Funding ($)",
+#     tooltip= list(formattable::currency(funcKY$Funding,digits=0L)))%>%
+#     hc_colors(colors)%>%
+#     hc_plotOptions(pie=list(
+#       dataLabels = list(enabled = FALSE)
+#       ))%>%
+#     hc_size(height=400,width=400)%>%
+#     hc_title(
+#     text = "Kentucky Funding by Category",
+#     margin = 20,
+#     align = "left"
+#   )
+# hc
 ```
-
-
-``` {r echo=FALSE}
+</div>
+<div class = "col-md-5">
+```{r, echo=FALSE, fig.align='center'}
 funcKY <- funcKY %>% add_row(Category = "Total", Funding=sum(funcKY$Funding))
 funcKY$Funding <- signif(funcKY$Funding, 5)
 funcKY$Funding <- currency(funcKY$Funding, digits = 0L)
 funcKY%>% select(Category, Funding)%>% kbl() %>%
-  kable_styling(bootstrap_options = c("striped", "hover", "condensed", "responsive"), full_width = F, html_font="Open Sans", font_size = 14)%>%  
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed", "responsive"), full_width = F, html_font="Open Sans", font_size = 14)%>%
   add_header_above(c("Kentucky Funding by Category"=2))%>%
   row_spec(1:11, color  = "black")%>%
   column_spec(1, "10cm")%>%
   column_spec(2, "3cm")
 ```
-
+</div>
 #### Spotlight on Projects
 Kentucky Energy and Environment Cabinet: The Department of Interior committed $74.3 million to Kentucky for mine reclamation.
 
 Ascend Elements: The Department of Energy committed $316 million to Ascend Elements to build a manufacturing and EV batteries recycling facility. The facility will produce enough precursor and battery-ready cathode active materials for 250,000 EVs per year.
 
 ### Louisiana
+<div class = "row">
+<div class = "col-md-7" style="padding-right:25px;">
 ```{r, echo=FALSE, fig.align='center'}
 
 #function and award type data, filter to Louisiana
@@ -747,9 +1310,9 @@ funcLA$Percent <- 100*(funcLA$Funding/sum(funcLA$Funding))
 funcLA$Percent <- format(round(funcLA$Percent, 2), nsmall=2)
 funcLA$Percent <- as.numeric(funcLA$Percent)
 
-funcLA$zone.start <- with(funcLA, c(0, cumsum(Percent)[-length(Percent)]))  
-funcLA$zone.end <- with(funcLA, cumsum(Percent))  
-funcLA$label.point <- with(funcLA, (100-(zone.start + zone.end) / 2)) 
+funcLA$zone.start <- with(funcLA, c(0, cumsum(Percent)[-length(Percent)]))
+funcLA$zone.end <- with(funcLA, cumsum(Percent))
+funcLA$label.point <- with(funcLA, (100-(zone.start + zone.end) / 2))
 
 colnames(funcLA)[1] <- "Category"
 
@@ -763,27 +1326,49 @@ pie <- ggplot(funcLA, aes(x="", y=Percent, fill=Category))+
   ggtitle("Louisiana Funding by Category")+
   theme_void(base_family= "Open Sans")
 pie
+
+# colors <- c("#FFA07A","#900C3F", "#C70039", "#D4442D","#FFF7B3","#AAC5E2","#00869F","#6171AF","#DCB6D0","#C799C8","#7B7B7B","#585757")
+funcLA$Funding <- signif(funcLA$Funding, 5)
+# hc <- funcLA %>%
+#   hchart(
+#     "pie", hcaes(x = Category, y = Funding),
+#     name = "Funding ($)",
+#     tooltip= list(formattable::currency(funcLA$Funding,digits=0L)))%>%
+#     hc_colors(colors)%>%
+#     hc_plotOptions(pie=list(
+#       dataLabels = list(enabled = FALSE)
+#       ))%>%
+#     hc_size(height=400,width=400)%>%
+#     hc_title(
+#     text = "Louisiana Funding by Category",
+#     margin = 20,
+#     align = "left"
+#   )
+# hc
 ```
-
-
-``` {r echo=FALSE}
+</div>
+<div class = "col-md-5">
+```{r, echo=FALSE, fig.align='center'}
 funcLA <- funcLA %>% add_row(Category = "Total", Funding=sum(funcLA$Funding))
 funcLA$Funding <- signif(funcLA$Funding, 5)
 funcLA$Funding <- currency(funcLA$Funding, digits = 0L)
 funcLA%>% select(Category, Funding)%>% kbl() %>%
-  kable_styling(bootstrap_options = c("striped", "hover", "condensed", "responsive"), full_width = F, html_font="Open Sans", font_size = 14)%>%  
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed", "responsive"), full_width = F, html_font="Open Sans", font_size = 14)%>%
   add_header_above(c("Louisiana Funding by Category"=2))%>%
   row_spec(1:12, color  = "black")%>%
   column_spec(1, "10cm")%>%
   column_spec(2, "3cm")
 ```
-
+</div>
 #### Spotlight on Projects
 Jefferson Parish, Louisiana: The Department of Transportation committed $6.9 million to the Jefferson Parish, Louisiana, to purchase three diesel-electric buses and construct new administrative and maintenance buildings.
 
 Louisiana Department of Natural Resources: The Department of Interior committed $25 million to the Louisiana DNR to plug and restore orphaned wells, implement methane monitoring protocols, and improve water quality monitoring.
-
+:::
+:::
 ### Mississippi
+<div class = "row">
+<div class = "col-md-7" style="padding-right:25px;">
 ```{r, echo=FALSE, fig.align='center'}
 
 #function and award type data, filter to Mississippi
@@ -796,9 +1381,9 @@ funcMS$Percent <- 100*(funcMS$Funding/sum(funcMS$Funding))
 funcMS$Percent <- format(round(funcMS$Percent, 2), nsmall=2)
 funcMS$Percent <- as.numeric(funcMS$Percent)
 
-funcMS$zone.start <- with(funcMS, c(0, cumsum(Percent)[-length(Percent)]))  
-funcMS$zone.end <- with(funcMS, cumsum(Percent))  
-funcMS$label.point <- with(funcMS, (100-(zone.start + zone.end) / 2)) 
+funcMS$zone.start <- with(funcMS, c(0, cumsum(Percent)[-length(Percent)]))
+funcMS$zone.end <- with(funcMS, cumsum(Percent))
+funcMS$label.point <- with(funcMS, (100-(zone.start + zone.end) / 2))
 
 colnames(funcMS)[1] <- "Category"
 
@@ -812,28 +1397,48 @@ pie <- ggplot(funcMS, aes(x="", y=Percent, fill=Category))+
   ggtitle("Mississippi Funding by Category")+
   theme_void(base_family="Open Sans")
 pie
+
+# colors <- c("#FFA07A","#900C3F", "#C70039", "#D4442D","#00869F", "#6171AF","#DCB6D0","#C799C8","#7B7B7B","#585757")
+funcMS$Funding <- signif(funcMS$Funding, 5)
+# hc <- funcMS %>%
+#   hchart(
+#     "pie", hcaes(x = Category, y = Funding),
+#     name = "Funding ($)",
+#     tooltip= list(formattable::currency(funcMS$Funding,digits=0L)))%>%
+#     hc_colors(colors)%>%
+#     hc_plotOptions(pie=list(
+#       dataLabels = list(enabled = FALSE)
+#       ))%>%
+#     hc_size(height=400,width=400)%>%
+#     hc_title(
+#     text = "Mississippi Funding by Category",
+#     margin = 20,
+#     align = "left"
+#   )
+# hc
 ```
-
-
-``` {r echo=FALSE}
+</div>
+<div class = "col-md-5">
+```{r, echo=FALSE, fig.align='center'}
 funcMS <- funcMS %>% add_row(Category = "Total", Funding=sum(funcMS$Funding))
 funcMS$Funding <- signif(funcMS$Funding, 5)
 funcMS$Funding <- currency(funcMS$Funding, digits = 0L)
 funcMS%>% select(Category, Funding)%>% kbl() %>%
-  kable_styling(bootstrap_options = c("striped", "hover", "condensed", "responsive"), full_width = F, html_font="Open Sans", font_size = 14)%>%  
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed", "responsive"), full_width = F, html_font="Open Sans", font_size = 14)%>%
   add_header_above(c("Mississippi Funding by Category"=2))%>%
   row_spec(1:10, color  = "black")%>%
   column_spec(1, "10cm")%>%
   column_spec(2, "3cm")
 ```
-
+</div>
 #### Spotlight on Projects
 Syrah: The Department of Energy committed $220 million to expand Syrah's natural graphite active anode material (AAM) facility. This facility will be the first large-scale natural graphite AAM facility in the United States, used for EV and critical energy storage batteries.
 
 Mississippi State Department of Health: The EPA committed $19.4 million to the Mississippi State Department of Health for improving public water systems, including fixing leaky or old pipes, improving the water supply, replacing or constructing finished water storage tanks, and more.
 
-
 ### North Carolina
+<div class = "row">
+<div class = "col-md-7" style="padding-right:25px;">
 ```{r, echo=FALSE, fig.align='center'}
 
 #function and award type data, filter to NC
@@ -846,9 +1451,9 @@ funcNC$Percent <- 100*(funcNC$Funding/sum(funcNC$Funding))
 funcNC$Percent <- format(round(funcNC$Percent, 2), nsmall=2)
 funcNC$Percent <- as.numeric(funcNC$Percent)
 
-funcNC$zone.start <- with(funcNC, c(0, cumsum(Percent)[-length(Percent)]))  
-funcNC$zone.end <- with(funcNC, cumsum(Percent))  
-funcNC$label.point <- with(funcNC, (100-(zone.start + zone.end) / 2)) 
+funcNC$zone.start <- with(funcNC, c(0, cumsum(Percent)[-length(Percent)]))
+funcNC$zone.end <- with(funcNC, cumsum(Percent))
+funcNC$label.point <- with(funcNC, (100-(zone.start + zone.end) / 2))
 
 colnames(funcNC)[1] <- "Category"
 
@@ -862,26 +1467,48 @@ pie <- ggplot(funcNC, aes(x="", y=Percent, fill=Category))+
   ggtitle("North Carolina Funding by Category")+
   theme_void(base_family="Open Sans")
 pie
-```
 
-``` {r echo=FALSE, fig.align='center'}
+# colors <- c("#FFA07A","#900C3F", "#C70039", "#D4442D","#52BE80","#75C7D3", "#00869F", "#6171AF","#DCB6D0","#C799C8", "#D2D2D2", "#7B7B7B","#585757")
+funcNC$Funding <- signif(funcNC$Funding, 5)
+# hc <- funcNC %>%
+#   hchart(
+#     "pie", hcaes(x = Category, y = Funding),
+#     name = "Funding ($)",
+#     tooltip= list(formattable::currency(funcNC$Funding,digits=0L)))%>%
+#     hc_colors(colors)%>%
+#     hc_plotOptions(pie=list(
+#       dataLabels = list(enabled = FALSE)
+#       ))%>%
+#     hc_size(height=400,width=400)%>%
+#     hc_title(
+#     text = "North Carolina Funding by Category",
+#     margin = 20,
+#     align = "left"
+#   )
+# hc
+```
+</div>
+<div class = "col-md-5">
+```{r, echo=FALSE, fig.align='center'}
 funcNC <- funcNC %>% add_row(Category = "Total", Funding=sum(funcNC$Funding))
 funcNC$Funding <- signif(funcNC$Funding, 5)
 funcNC$Funding <- currency(funcNC$Funding, digits = 0L)
 funcNC%>% select(Category, Funding)%>% kbl() %>%
-  kable_styling(bootstrap_options = c("striped", "hover", "condensed", "responsive"), full_width = F, html_font="Open Sans", font_size = 14)%>%  
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed", "responsive"), full_width = F, html_font="Open Sans", font_size = 14)%>%
   add_header_above(c("North Carolina Funding by Category"=2))%>%
   row_spec(1:13, color  = "black")%>%
   column_spec(1, "10cm")%>%
   column_spec(2, "3cm")
 ```
-
+</div>
 #### Spotlight on Projects
 Applied Materials: The Department of Energy committed $100 million to Applied Materials to build a pre-lithiation and lithium anode facility to support the EV battery supply chain. Applied Materials will build the facility in North Carolina and has not yet finalized an exact location.
 
 Eastern Band of Cherokee Indians: The Department of Commerce committed $500,000 to the Eastern Band of Cherokee Indians for the initial phase of a broadband initiative, including rights-of-way, appraisals, project inspection fees, and project management.
 
 ### South Carolina
+<div class = "row">
+<div class = "col-md-7" style="padding-right:25px;">
 ```{r, echo=FALSE, fig.align='center'}
 
 #function and award type data, filter to SC
@@ -894,9 +1521,9 @@ funcSC$Percent <- 100*(funcSC$Funding/sum(funcSC$Funding))
 funcSC$Percent <- format(round(funcSC$Percent, 2), nsmall=2)
 funcSC$Percent <- as.numeric(funcSC$Percent)
 
-funcSC$zone.start <- with(funcSC, c(0, cumsum(Percent)[-length(Percent)]))  
-funcSC$zone.end <- with(funcSC, cumsum(Percent))  
-funcSC$label.point <- with(funcSC, (100-(zone.start + zone.end) / 2)) 
+funcSC$zone.start <- with(funcSC, c(0, cumsum(Percent)[-length(Percent)]))
+funcSC$zone.end <- with(funcSC, cumsum(Percent))
+funcSC$label.point <- with(funcSC, (100-(zone.start + zone.end) / 2))
 
 colnames(funcSC)[1] <- "Category"
 
@@ -910,24 +1537,48 @@ pie <- ggplot(funcSC, aes(x="", y=Percent, fill=Category))+
   ggtitle("South Carolina Funding by Category")+
   theme_void(base_family="Open Sans")
 pie
-```
 
-``` {r echo=FALSE}
+# colors <- c("#FFA07A","#900C3F", "#C70039", "#D4442D","#52BE80","#75C7D3", "#00869F", "#6171AF","#DCB6D0","#C799C8", "#D2D2D2", "#7B7B7B","#585757")
+funcSC$Funding <- signif(funcSC$Funding, 5)
+
+# hc <- funcSC %>%
+#   hchart(
+#     "pie", hcaes(x = Category, y = Funding),
+#     name = "Funding ($)",
+#     tooltip= list(formattable::currency(funcSC$Funding,digits=0L)))%>%
+#     hc_colors(colors)%>%
+#     hc_plotOptions(pie=list(
+#       dataLabels = list(enabled = FALSE)
+#       ))%>%
+#     hc_size(height=400,width=400)%>%
+#     hc_title(
+#     text = "South Carolina Funding by Category",
+#     margin = 20,
+#     align = "left"
+#   )
+# hc
+```
+</div>
+<div class = "col-md-5">
+```{r, echo=FALSE, fig.align='center'}
 funcSC <- funcSC %>% add_row(Category = "Total", Funding=sum(funcSC$Funding))
 funcSC$Funding <- signif(funcSC$Funding, 5)
 funcSC$Funding <- currency(funcSC$Funding, digits = 0L)
 funcSC%>% select(Category, Funding)%>% kbl() %>%
-  kable_styling(bootstrap_options = c("striped", "hover", "condensed", "responsive"), full_width = F, html_font="Open Sans", font_size = 14)%>%  
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed", "responsive"), full_width = F, html_font="Open Sans", font_size = 14)%>%
   add_header_above(c("South Carolina Funding by Category"=2))%>%
   row_spec(1:13, color  = "black")%>%
   column_spec(1, "10cm")%>%
   column_spec(2, "3cm")
 ```
+</div>
 
 #### Spotlight on Projects
 City of Clemson, SC: The Department of Commerce committed $3.9 million to the City of Clemson, South Carolina, for zero-emission battery electric buses to replace diesel buses that have exceeded their useful life.
 
 ### Tennessee
+<div class = "row">
+<div class = "col-md-7" style="padding-right:25px;">
 ```{r, echo=FALSE, fig.align='center'}
 
 #function and award type data, filter to Tennessee
@@ -940,9 +1591,9 @@ funcTN$Percent <- 100*(funcTN$Funding/sum(funcTN$Funding))
 funcTN$Percent <- format(round(funcTN$Percent, 2), nsmall=2)
 funcTN$Percent <- as.numeric(funcTN$Percent)
 
-funcTN$zone.start <- with(funcTN, c(0, cumsum(Percent)[-length(Percent)]))  
-funcTN$zone.end <- with(funcTN, cumsum(Percent))  
-funcTN$label.point <- with(funcTN, (100-(zone.start + zone.end) / 2)) 
+funcTN$zone.start <- with(funcTN, c(0, cumsum(Percent)[-length(Percent)]))
+funcTN$zone.end <- with(funcTN, cumsum(Percent))
+funcTN$label.point <- with(funcTN, (100-(zone.start + zone.end) / 2))
 
 colnames(funcTN)[1] <- "Category"
 
@@ -956,26 +1607,49 @@ pie <- ggplot(funcTN, aes(x="", y=Percent, fill=Category))+
   ggtitle("Tennessee Funding by Category")+
   theme_void(base_family="Open Sans")
 pie
-```
 
-``` {r echo=FALSE}
+# colors <- c("#FFA07A","#F08080", "#900C3F", "#C70039", "#D4442D","#FFF7B3","#AAC5E2","#00869F","#6171AF","#DCB6D0","#C799C8", "#D2D2D2", "#7B7B7B","#585757")
+funcTN$Funding <- signif(funcTN$Funding, 5)
+
+# hc <- funcTN %>%
+#   hchart(
+#     "pie", hcaes(x = Category, y = Funding),
+#     name = "Funding ($)",
+#     tooltip= list(formattable::currency(funcTN$Funding,digits=0L)))%>%
+#     hc_colors(colors)%>%
+#     hc_plotOptions(pie=list(
+#       dataLabels = list(enabled = FALSE)
+#       ))%>%
+#     hc_size(height=400,width=400)%>%
+#     hc_title(
+#     text = "Tennessee Funding by Category",
+#     margin = 20,
+#     align = "left"
+#   )
+# hc
+```
+</div>
+<div class = "col-md-5">
+```{r, echo=FALSE, fig.align='center'}
 funcTN <- funcTN %>% add_row(Category = "Total", Funding=sum(funcTN$Funding))
 funcTN$Funding <- signif(funcTN$Funding, 5)
 funcTN$Funding <- currency(funcTN$Funding, digits = 0L)
 funcTN%>% select(Category, Funding)%>% kbl() %>%
-  kable_styling(bootstrap_options = c("striped", "hover", "condensed", "responsive"), full_width = F, html_font="Open Sans", font_size = 14)%>%  
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed", "responsive"), full_width = F, html_font="Open Sans", font_size = 14)%>%
   add_header_above(c("Tennessee Funding by Category"=2))%>%
   row_spec(1:14, color  = "black")%>%
   column_spec(1, "10cm")%>%
   column_spec(2, "3cm")
 ```
-
+</div>
 #### Spotlight on Projects
 Economic Development Growth Engine for Memphis and Shelby County: The Environmental Protection Agency committed $1 million to finance a revolving loan fund for brownfield cleanup. The grant will specifically target four sites, including a historic school for African Americans and a site at which the State of Tennessee stored contaminated soil in the 1960s.
 
 Piedmont Lithium: The Department of Energy committed $141.7 million to Piedmont Lithium to build a lithium hydroxide facility in Etowah, Tennessee that will strengthen the domestic EV battery supply chain. The facility is expected to produce 30,000 metric tons of lithium hydroxide per year, doubling the current U.S. production.
 
 ### Virginia
+<div class = "row">
+<div class = "col-md-7" style="padding-right:25px;">
 ```{r, echo=FALSE, fig.align='center'}
 
 #function and award type data, filter to Virginia
@@ -988,9 +1662,9 @@ funcVA$Percent <- 100*(funcVA$Funding/sum(funcVA$Funding))
 funcVA$Percent <- format(round(funcVA$Percent, 2), nsmall=2)
 funcVA$Percent <- as.numeric(funcVA$Percent)
 
-funcVA$zone.start <- with(funcVA, c(0, cumsum(Percent)[-length(Percent)]))  
-funcVA$zone.end <- with(funcVA, cumsum(Percent))  
-funcVA$label.point <- with(funcVA, (100-(zone.start + zone.end) / 2)) 
+funcVA$zone.start <- with(funcVA, c(0, cumsum(Percent)[-length(Percent)]))
+funcVA$zone.end <- with(funcVA, cumsum(Percent))
+funcVA$label.point <- with(funcVA, (100-(zone.start + zone.end) / 2))
 
 colnames(funcVA)[1] <- "Category"
 
@@ -1004,19 +1678,41 @@ pie <- ggplot(funcVA, aes(x="", y=Percent, fill=Category))+
   ggtitle("Virginia Funding by Category")+
   theme_void(base_family="Open Sans")
 pie
-```
 
-``` {r echo=FALSE}
+# colors <- c("#FFA07A","#900C3F", "#C70039", "#D4442D", "#FCB616","#FFF7B3","#8FED94", "#52BE80", "#AAC5E2", "#75C7D3", "#00869F", "#6171AF","#DCB6D0","#C799C8", "#D2D2D2", "#7B7B7B","#585757")
+funcVA$Funding <- signif(funcVA$Funding, 5)
+
+# hc <- funcVA %>%
+#   hchart(
+#     "pie", hcaes(x = Category, y = Funding),
+#     name = "Funding ($)",
+#     tooltip= list(formattable::currency(funcVA$Funding,digits=0L)))%>%
+#     hc_colors(colors)%>%
+#     hc_plotOptions(pie=list(
+#       dataLabels = list(enabled = FALSE)
+#       ))%>%
+#     hc_size(height=400,width=400)%>%
+#     hc_title(
+#     text = "Virginia Funding by Category",
+#     margin = 20,
+#     align = "left"
+#   )
+# hc
+```
+</div>
+<div class = "col-md-5">
+```{r, echo=FALSE, fig.align='center'}
 funcVA <- funcVA %>% add_row(Category = "Total", Funding=sum(funcVA$Funding))
 funcVA$Funding <- signif(funcVA$Funding, 5)
 funcVA$Funding <- currency(funcVA$Funding, digits = 0L)
 funcVA%>% select(Category, Funding)%>% kbl() %>%
-  kable_styling(bootstrap_options = c("striped", "hover", "condensed", "responsive"), full_width = F, html_font="Open Sans", font_size = 14)%>%  
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed", "responsive"), full_width = F, html_font="Open Sans", font_size = 14)%>%
   add_header_above(c("Virginia Funding by Category"=2))%>%
   row_spec(1:17, color  = "black")%>%
   column_spec(1, "10cm")%>%
   column_spec(2, "3cm")
 ```
+</div>
 
 #### Spotlight on Projects
 National Association of State Energy Officials: The Department of Energy awarded $1.5 million to NASEO for their work building a national electric vehicle infrastructure network.
