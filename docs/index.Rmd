@@ -592,7 +592,7 @@ SEdata$label.point <- with(SEdata, ((zone.start + zone.end) / 2))
 pie <- ggplot(SEdata, aes(x="", y=Percent, fill=reorder(State, Percent, decreasing=F)))+
   geom_bar(width = 1, stat = "identity")+
   coord_polar("y", start=0)+
-  scale_fill_manual(values=c("#BFBFBF", "#6171AF", "#00869F", "#75C7D3", "#AAC5E2", "#8FED94", "#FFF745","#FCB616", "#D4442D", "#C70039", "#900C3F"), name= "States")+
+  scale_fill_manual(values=c("#BFBFBF", "#6171AF", "#00869F", "#75C7D3", "#AAC5E2", "#8FED94", "#FFF7B3","#FCB616", "#D4442D", "#C70039", "#900C3F"), name= "States")+
   geom_text_repel(data = SEdata,
                    aes(y = label.point, label = ifelse(Percent>10,paste0(Percent, "%"),""), family="Open Sans"),
   size = 4.5, nudge_x = 1, show.legend = FALSE) +
